@@ -14,7 +14,7 @@ import { BoardView } from './ui/boardView';
 import { WheelView } from './ui/wheelView';
 import { getVolume, isMuted, setMuted, setVolume, sfx } from './ui/audio';
 import { Host } from './net/host';
-import { buildConductorView, buildView, ConductorIntent } from './net/protocol';
+import { buildConductorView, buildView, ConductorIntent, loadRete } from './net/protocol';
 import { showLobby } from './ui/lobby';
 import { startPhone } from './ui/phone';
 
@@ -707,8 +707,10 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
 }
 
 const room = new URLSearchParams(location.search).get('r');
-if (room) startPhone(document.body, room.toUpperCase());
-else showSetup();
+loadRete().finally(() => {
+  if (room) startPhone(document.body, room.toUpperCase());
+  else showSetup();
+});
 
 // Offline support: register the service worker (production build only) and ask it to cache what we loaded.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

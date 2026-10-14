@@ -1,0 +1,13 @@
+[Unit]
+Description=La Ruota - server PeerJS
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/ruota/peer/peer-server.mjs
+WorkingDirectory=/opt/ruota/peer
+User=www-data
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

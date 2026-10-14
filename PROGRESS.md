@@ -2,7 +2,7 @@
 
 ## Stato
 - **Fasi 1–5 COMPLETATE**. **Fase 6** (bambini, banca frasi 355+120, PWA offline, rifiniture): codice e test verdi (vitest 48 + e2e 17). Deploy ok, smoke test pubblico ok. **Tutte le fasi completate.**
-- Sito: https://alpellibbe2.github.io/ruota/
+- Sito: server di casa (CT Debian sul mini PC), installato con `deploy/installa.sh`. GitHub Pages disattivato, repo privato.
 
 ## Struttura
 - `src/core/` logica pura (phrase, wheel, game reducer, frasi). Test in `tests/`.
@@ -20,3 +20,4 @@
 - Finale: `src/core/finale.ts` (FinaleState dentro `GameState.finale`, azioni F_*). Dopo l'ultima manche `toFinale` → NEXT_ROUND (con frase spareggio) → eventuale spareggio ultimo-round tra i pari → `phase: 'finale'`. Tick 60 s nel controller (main.ts `syncFinaleTimer`). Vista telefono del campione in phone.ts (`v.finale`). Spegnibile dalle impostazioni (checkbox).
 - I test e2e vecchi disattivano il finale con `finale-toggle`.
 - Fase 6: `config.kids` (setup: checkbox) → banca `bambini.json` (`setKidsMode`), preset senza Express, vocali gratis, Bancarotta solo manche, tolleranza 2 refusi, timer risposta 45 s, finale 1 tabellone/120 s, tastiera grande. PWA: `public/sw.js` (cache runtime + precache dei file caricati), `manifest.webmanifest`, icone generate.
+- `deploy/`: pacchetto per il mini PC (nginx + server PeerJS + coturn). `rete.json` a runtime attiva PeerJS sulla stessa origine e il TURN; `e2e/casa.spec.ts` prova un'installazione (`CASA=http://<ip>/`).

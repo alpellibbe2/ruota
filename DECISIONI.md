@@ -29,3 +29,8 @@
 - **Fase 6**: banca frasi = 355 adulti + 120 bambini, scritte da zero (modi di dire/proverbi comuni inclusi); generatore fuori dal repo. Modalità bambini: Bancarotta solo sulla manche, vocali gratis, nessun Express, risposta 45 s, tolleranza 2 refusi (frasi ≥ 5 lettere), finale con un solo tabellone e 120 s.
 - PWA: service worker scritto a mano (nessuna dipendenza); navigazioni network-first, asset cache-first; ignora il traffico PeerJS. Precache dei file caricati via messaggio dalla pagina.
 - Volume (slider) e mute sul palco; confetti CSS a fine manche/partita.
+
+## 2026-10-14 (sera)
+- **Server di casa al posto di GitHub Pages + PeerJS cloud**: sito, segnalazione PeerJS e TURN (coturn) su un CT Debian del mini PC, solo rete di casa. Repo GitHub privato, Pages disattivato. Alternative scartate: TURN raggiungibile da internet (porte aperte, dominio, rischio CGNAT), dominio personale.
+- Configurazione di rete a runtime in `rete.json` (scritto da `deploy/installa.sh`, non nel repo): PeerJS sulla stessa origine (`/peerjs` via nginx), TURN su `<host della pagina>:3478` con utente fisso `ruota` e password generata. Password in chiaro nella pagina: accettabile perché il server non è esposto su internet. Se un giorno lo si espone: passare a credenziali temporanee (`use-auth-secret` di coturn).
+- Sito in HTTP sulla LAN: il service worker non si registra (serve HTTPS), quindi niente modalità offline da quel server; il resto funziona.

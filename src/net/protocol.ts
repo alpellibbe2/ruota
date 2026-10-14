@@ -139,10 +139,49 @@ export const ROOM_PREFIX = 'ruota-';
 export const roomCode = (rnd: () => number = Math.random) =>
   Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(rnd() * 24)]).join('');
 
-/** Peer options: `?peer=host:port` selects a custom signalling server (used by tests). */
+/**
+ * Self-hosted network config, served as `rete.json` next to the page (written by deploy/installa.sh).
+ * With it, signalling goes to the PeerJS server behind the same origin and the TURN server
+ * on the same host relays traffic when phones cannot reach the screen directly.
+ */
+interface Rete { turn?: { username: string; credential: string; port?: number }; relay?: boolean }
+let rete: Rete | null = null;
+
+export async function loadRete(): Promise<void> {
+  try {
+    const r = await fetch(new URL('rete.json', location.href), { cache: 'no-store' });
+    if (r.ok) rete = (await r.json()) as Rete;
+  } catch { /* no config: public PeerJS server */ }
+}
+
+function iceConfig(host: string): Record<string, unknown> | undefined {
+  if (!rete?.turn) return undefined;
+  const { username, credential, port = 3478 } = rete.turn;
+  return {
+    iceServers: [
+      { urls: `stun:${host}:${port}` },
+      { urls: [`turn:${host}:${port}?transport=udp`, `turn:${host}:${port}?transport=tcp`], username, credential },
+    ],
+    // `relay: true` forces every connection through TURN (to check that the relay works)
+    ...(rete.relay ? { iceTransportPolicy: 'relay' } : {}),
+  };
+}
+
+/** Peer options: `?peer=host:port` selects a custom signalling server (used by tests); `rete.json` the home server. */
 export function peerOptions(): Record<string, unknown> {
   const p = new URLSearchParams(location.search).get('peer');
-  if (!p) return {};
-  const [host, port] = p.split(':');
-  return { host, port: Number(port), path: '/', secure: false };
+  if (p) {
+    const [host, port] = p.split(':');
+    return { host, port: Number(port), path: '/', secure: false };
+  }
+  if (!rete) return {};
+  const secure = location.protocol === 'https:';
+  const config = iceConfig(location.hostname);
+  return {
+    host: location.hostname,
+    port: Number(location.port) || (secure ? 443 : 80),
+    path: '/',
+    secure,
+    ...(config ? { config } : {}),
+  };
 }
