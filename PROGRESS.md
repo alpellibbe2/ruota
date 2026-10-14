@@ -2,7 +2,7 @@
 
 ## Stato
 - **Fasi 1, 2, 3, 4 – COMPLETATE** (https://alpellibbe2.github.io/ruota/).
-- **Fase 5 – Ruota delle Meraviglie**: codice e test (vitest 46 + e2e 13) verdi. Resta deploy/verifica HTTP 200.
+- **Fase 5 – Ruota delle Meraviglie**: codice e test (vitest 46 + e2e 13) verdi. Deploy ok (HTTP 200). **Fase 5 COMPLETATA.**
 - Prossimo passo: Fase 6 (modalità bambini con banca frasi dedicata, banca frasi completa ~300 adulti + 100 bambini, rifinitura grafica/audio, PWA offline con service worker).
 
 ## Struttura
