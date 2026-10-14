@@ -60,3 +60,55 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .final { background: #1a237e; border: 6px solid #f5c518; border-radius: 30px; padding: 40px 80px; min-width: 800px; text-align: center; display: flex; flex-direction: column; gap: 14px; }
 .final h2 { font-size: 64px; margin: 0 0 10px; color: #f5c518; }
 .rank { display: flex; justify-content: space-between; font-size: 46px; border-left: 20px solid var(--c); padding-left: 20px; background: #0004; border-radius: 10px; }
+
+/* lobby */
+.lobby { position: absolute; inset: 0; }
+.logo.small { font-size: 90px; position: absolute; left: 0; right: 0; top: 20px; text-align: center; }
+.lobby-left { position: absolute; left: 120px; top: 180px; width: 640px; text-align: center; }
+.qr { width: 520px; height: 520px; border-radius: 24px; border: 10px solid #fff; background: #fff; }
+.code { font-size: 130px; font-weight: 800; letter-spacing: 24px; color: #f5c518; line-height: 1.1; }
+.url { font-size: 26px; opacity: .7; word-break: break-all; }
+.lobby-right { position: absolute; left: 900px; top: 190px; width: 900px; display: flex; flex-direction: column; gap: 18px; }
+.lobby-right h2 { font-size: 56px; margin: 0; }
+.plist { display: flex; flex-direction: column; gap: 12px; min-height: 480px; }
+.lp { font-size: 52px; border-left: 28px solid var(--c); background: #0005; padding: 6px 24px; border-radius: 12px; }
+.lp.off, .score.off { opacity: .35; }
+.empty { font-size: 40px; opacity: .6; }
+.big.alt { background: #fff; box-shadow: 0 8px 0 #9fa8da; font-size: 40px; }
+.big-hint { font-size: 60px; font-weight: 800; }
+.hint.sm { font-size: 34px; opacity: .8; }
+
+/* phone */
+.phone-body { overflow: auto; }
+.phone { position: fixed; inset: 0; overflow: auto; background: #1a237e; color: #fff; font-family: 'Baloo 2', sans-serif; display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; max-width: 520px; margin: 0 auto; }
+.plogo { text-align: center; color: #f5c518; font-size: 56px; margin: 30px 0 0; font-weight: 800; }
+.psub, .pstatus { text-align: center; font-size: 22px; margin: 6px 0; }
+.pname-in, .psolve-in { font: inherit; font-size: 26px; padding: 12px; border-radius: 12px; border: 0; text-align: center; }
+.pcolors { display: flex; justify-content: center; gap: 12px; margin: 8px 0; }
+.pcolor { width: 48px; height: 48px; border-radius: 50%; border: 4px solid transparent; }
+.pcolor.on { border-color: #fff; }
+.pbig { font: inherit; font-weight: 800; font-size: 32px; padding: 14px; border-radius: 40px; border: 0; background: #f5c518; color: #1a237e; }
+.pchip { align-self: center; font-size: 36px; padding: 8px 34px; border-radius: 40px; color: #111; font-weight: 800; }
+.ptop { display: flex; align-items: baseline; justify-content: space-between; padding: 6px 16px; border-radius: 14px; color: #111; font-size: 24px; }
+.pmoney { font-size: 40px; font-weight: 800; }
+.pwarn { background: #b71c1c; text-align: center; padding: 4px; border-radius: 8px; }
+.pboard { background: #0b1a6b; border: 3px solid #f5c518; border-radius: 12px; padding: 6px; }
+.ptema { text-align: center; color: #f5c518; font-weight: 800; font-size: 18px; text-transform: uppercase; }
+.prow { display: flex; gap: 2px; justify-content: center; margin-top: 2px; }
+.ptile { width: 24px; height: 30px; border-radius: 3px; background: #fff; color: #111; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; }
+.ptile.cov { background: #2e9e4a; }
+.ptile.blank { background: transparent; }
+.pmsg { text-align: center; color: #ffeb3b; font-size: 22px; min-height: 30px; }
+.ptimer { text-align: center; font-size: 22px; min-height: 28px; }
+.pctrl { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.pswipe { flex: 1; min-height: 150px; border-radius: 20px; border: 4px dashed #f5c518; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; touch-action: none; }
+.pbtn { font: inherit; font-weight: 800; font-size: 26px; padding: 14px; border-radius: 16px; border: 0; background: #fff; color: #1a237e; flex: 1; }
+.pbtn.small { font-size: 18px; padding: 8px; flex: none; }
+.pbtn:disabled { opacity: .35; }
+.prowbtn { display: flex; gap: 10px; }
+.pkb { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.pkey { font: inherit; font-weight: 800; font-size: 28px; padding: 10px 0; border-radius: 10px; border: 0; background: #fff; color: #1a237e; }
+.pkey:disabled { opacity: .2; }
+.phint { text-align: center; font-size: 22px; }
+.pbigmsg { text-align: center; font-size: 30px; margin-top: 30px; }
+.pctrl > .pbtn { flex: none; }

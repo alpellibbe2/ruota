@@ -6,6 +6,10 @@ import { DEFAULT_WHEEL, spinAngle } from './core/wheel';
 import { BoardView } from './ui/boardView';
 import { WheelView } from './ui/wheelView';
 import { isMuted, setMuted, sfx } from './ui/audio';
+import { Host } from './net/host';
+import { buildView } from './net/protocol';
+import { showLobby } from './ui/lobby';
+import { startPhone } from './ui/phone';
 
 const SETTINGS_KEY = 'ruota.impostazioni';
 const TEST = new URLSearchParams(location.search).has('test');
@@ -82,15 +86,45 @@ function showSetup() {
   cb.onchange = () => { st.config = { ...st.config, bankruptAll: cb.checked }; };
   bankRow.append(cb, h('span', '', 'Bancarotta azzera anche il totale'));
 
-  const start = h('button', 'big', 'INIZIA');
+  const start = h('button', 'big', 'INIZIA (UN DISPOSITIVO)');
   start.dataset.testid = 'start';
   start.onclick = () => {
     const names = st.names.map((n, i) => n.trim() || `Giocatore ${i + 1}`);
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...st, names }));
     startGame({ ...st, names });
   };
-  box.append(countRow, namesBox, roundsRow, bankRow, start);
+  const phones = h('button', 'big alt', 'CON I TELEFONI');
+  phones.dataset.testid = 'phones';
+  phones.onclick = () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(st));
+    showLobby(stage, st, (settings, host) => startGame(settings, host));
+  };
+  const btns = h('div', 'row');
+  btns.append(start, phones);
+  const saved = loadSession();
+  if (saved) {
+    const resume = h('button', 'big alt', 'RIPRENDI PARTITA');
+    resume.dataset.testid = 'resume';
+    resume.onclick = async () => {
+      const host = new Host();
+      host.restoreSeats(saved.seats);
+      host.started = true;
+      await host.open(saved.code);
+      startGame(saved.settings, host, saved.state);
+    };
+    btns.append(resume);
+  }
+  box.append(countRow, namesBox, roundsRow, bankRow, btns);
   stage.append(box);
+}
+
+const SESSION_KEY = 'ruota.sessione';
+interface Session { code: string; seats: { token: string; name: string; color: string }[]; settings: Settings; state: GameState }
+function loadSession(): Session | null {
+  try {
+    const x = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as Session | null;
+    return x && x.state.phase !== 'gameEnd' ? x : null;
+  } catch { return null; }
 }
 
 function showSetupWith(st: Settings) {
@@ -99,9 +133,18 @@ function showSetupWith(st: Settings) {
 }
 
 // ───────────────────────── game screen ─────────────────────────
-function startGame(st: Settings) {
-  const phrases = pickPhrases(st.rounds);
-  let state = newGame(st.names, phrases, st.config);
+const ANSWER_MS = Number(new URLSearchParams(location.search).get('t')) || 15000;
+
+export function startGame(st: Settings, host?: Host, resume?: GameState) {
+  let state: GameState;
+  if (resume) state = resume;
+  else {
+    state = newGame(st.names, pickPhrases(st.rounds), st.config);
+    if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
+  }
+  if (host) host.started = true;
+  let deadline = 0;
+  let timer = 0;
   let mode: 'menu' | 'vowel' | 'solve' = 'menu';
 
   stage.textContent = '';
@@ -126,7 +169,7 @@ function startGame(st: Settings) {
     const dist = Math.abs(e.clientY - swipeStart.y);
     const speed = dist / Math.max(60, performance.now() - swipeStart.t);
     swipeStart = null;
-    if (dist > 20) spin(Math.min(1, speed / 2));
+    if (dist > 20 && !host) spin(Math.min(1, speed / 2));
   };
 
   const dispatch = (a: Action) => {
@@ -136,7 +179,35 @@ function startGame(st: Settings) {
     if (state.current !== prev.current || state.phase !== 'turn') mode = 'menu';
     render(prev);
     if (state.event.id !== prev.event.id) playEvent();
+    afterChange();
   };
+
+  /** Remote play: answer timer, phone views and session persistence. */
+  function afterChange() {
+    if (!host) return;
+    clearTimeout(timer);
+    deadline = 0;
+    if (state.phase === 'turn' || state.phase === 'consonant') {
+      deadline = Date.now() + ANSWER_MS;
+      timer = window.setTimeout(() => dispatch({ type: 'TIMEOUT' }), ANSWER_MS);
+    }
+    broadcast();
+    try {
+      const seats = host.seats.map(({ token, name, color }) => ({ token, name, color }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ code: host.code, seats, settings: st, state }));
+    } catch { /* storage full or unavailable */ }
+  }
+  const broadcast = () => host?.broadcastView((i) => buildView(state, i, host.connected(), deadline));
+  if (host) {
+    host.onLobby = () => { broadcast(); renderScores(); };
+    host.onIntent = (seat, i) => {
+      if (seat !== state.current) return;
+      if (i.k === 'spin') void spin(Math.min(1, Math.max(0.2, Number(i.power) || 0.5)));
+      else if (i.k === 'call') dispatch({ type: 'CALL', letter: String(i.l) });
+      else if (i.k === 'vowel') dispatch({ type: 'BUY_VOWEL', letter: String(i.l) });
+      else if (i.k === 'solve') dispatch({ type: 'SOLVE', text: String(i.text).slice(0, 80) });
+    };
+  }
 
   function playEvent() {
     const e = state.event;
@@ -177,7 +248,10 @@ function startGame(st: Settings) {
     panel.textContent = '';
     const called = new Set(state.called);
     const me = state.players[state.current];
-    if (state.phase === 'spinning') {
+    if (host && state.phase !== 'roundEnd') {
+      panel.append(h('div', 'hint big-hint', state.phase === 'spinning' ? 'La ruota gira…' : `Tocca a ${me.name}`));
+      panel.append(h('div', 'hint sm', 'Usa il tuo telefono per giocare'));
+    } else if (state.phase === 'spinning') {
       panel.append(h('div', 'hint', 'La ruota gira…'));
     } else if (state.phase === 'consonant') {
       panel.append(h('div', 'hint', `Scegli una consonante – ${state.pending} a lettera`));
@@ -222,6 +296,7 @@ function startGame(st: Settings) {
       const c = h('div', 'score' + (i === state.current && state.phase !== 'gameEnd' ? ' active' : ''));
       c.style.setProperty('--c', p.color);
       c.dataset.testid = `score-${i}`;
+      if (host && !host.connected()[i]) c.classList.add('off');
       c.append(h('div', 'pname', p.name), h('div', 'pround', String(p.round)), h('div', 'ptotal', `Totale ${p.total}`));
       scores.append(c);
     });
@@ -256,7 +331,7 @@ function startGame(st: Settings) {
       box.append(r);
     });
     const again = h('button', 'big', 'NUOVA PARTITA'); again.dataset.testid = 'again';
-    again.onclick = () => showSetup();
+    again.onclick = () => { localStorage.removeItem(SESSION_KEY); host?.close(); location.reload(); };
     box.append(again);
     overlay.append(box);
   }
@@ -265,12 +340,16 @@ function startGame(st: Settings) {
     if (e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey) return;
     const l = e.key.toUpperCase();
     if (!/^[A-Z]$/.test(l)) return;
+    if (host) return;
     if (state.phase === 'consonant') dispatch({ type: 'CALL', letter: l });
     else if (state.phase === 'turn' && mode === 'vowel') dispatch({ type: 'BUY_VOWEL', letter: l });
   });
 
   if (TEST) (window as unknown as Record<string, unknown>).__ruota = { state: () => state };
   render();
+  afterChange();
 }
 
-showSetup();
+const room = new URLSearchParams(location.search).get('r');
+if (room) startPhone(document.body, room.toUpperCase());
+else showSetup();
