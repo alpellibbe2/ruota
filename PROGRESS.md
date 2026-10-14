@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## Stato
-- **Fasi 1–5 COMPLETATE**. **Fase 6** (bambini, banca frasi 355+120, PWA offline, rifiniture): codice e test verdi (vitest 48 + e2e 17). Resta deploy/verifica HTTP 200 + smoke test pubblico, poi RIEPILOGO-NOTTE.md e `.lavoro-finito`.
+- **Fasi 1–5 COMPLETATE**. **Fase 6** (bambini, banca frasi 355+120, PWA offline, rifiniture): codice e test verdi (vitest 48 + e2e 17). Deploy ok, smoke test pubblico ok. **Tutte le fasi completate.**
 - Sito: https://alpellibbe2.github.io/ruota/
 
 ## Struttura
