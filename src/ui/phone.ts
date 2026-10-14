@@ -3,7 +3,7 @@
 import { PLAYER_COLORS } from '../core/game';
 import { CONSONANTS, VOWELS } from '../core/phrase';
 import { Client } from '../net/client';
-import { PlayerView, ToClient } from '../net/protocol';
+import { ConductorView, PlayerView, ToClient } from '../net/protocol';
 
 const PROFILE_KEY = 'ruota.profilo';
 
@@ -56,8 +56,13 @@ export function startPhone(body: HTMLElement, code: string) {
       localStorage.setItem(tokenKey, profile.token);
       connect();
     };
-    root.append(inp, colors, go);
+    const cond = h('button', 'plink', 'Sono il conduttore'); cond.dataset.testid = 'join-cond';
+    cond.onclick = () => { asConductor = true; localStorage.setItem(tokenKey + '.c', '1'); connect(); };
+    root.append(inp, colors, go, cond);
   };
+  let asConductor = localStorage.getItem(tokenKey + '.c') === '1';
+  let cview: ConductorView | null = null;
+  let note = '';
 
   let client: Client | null = null;
   let view: PlayerView | null = null;
@@ -70,13 +75,19 @@ export function startPhone(body: HTMLElement, code: string) {
   function connect() {
     root.textContent = '';
     root.append(h('p', 'pstatus', 'Collegamento…'));
-    client = new Client(code, { t: 'join', name: profile.name, color: profile.color, token: profile.token });
-    client.onStatus = (s) => { status = s; if (view) render(); else if (s === 'lost') root.textContent = 'Connessione persa, riprovo…'; };
+    client = new Client(code, { t: 'join', name: profile.name, color: profile.color, token: profile.token, ...(asConductor ? { role: 'conductor' as const } : {}) });
+    client.onStatus = (s) => { status = s; if (cview) renderConductor(); else if (view) render(); else if (s === 'lost') root.textContent = 'Connessione persa, riprovo…'; };
     client.onMessage = (m: ToClient) => {
       if (m.t === 'rejected') {
         client?.stop();
         root.textContent = '';
         root.append(h('h1', 'plogo', 'LA RUOTA'), h('p', 'psub', m.reason));
+      } else if (m.t === 'cwelcome') {
+        root.textContent = '';
+        root.append(h('h1', 'plogo', 'CONDUTTORE'), h('p', 'psub', 'Collegato. Aspetta che inizi la partita…'));
+      } else if (m.t === 'cview') {
+        cview = m.v;
+        renderConductor();
       } else if (m.t === 'lobby') {
         view = null;
         root.textContent = '';
@@ -97,6 +108,57 @@ export function startPhone(body: HTMLElement, code: string) {
       }
     };
     client.start();
+  }
+
+  function renderConductor() {
+    const v = cview!;
+    root.textContent = '';
+    root.append(h('div', 'ctop', 'CONDUTTORE · ' + v.tema));
+    if (status === 'lost') root.append(h('div', 'pwarn', 'Connessione persa… riconnessione'));
+    const sol = h('div', 'csol', v.solution); sol.dataset.testid = 'csolution';
+    root.append(sol);
+    const cur = v.players[v.current];
+    root.append(h('div', 'pmsg', v.phase === 'roundEnd' ? 'Frase risolta' : v.phase === 'gameEnd' ? 'Partita finita' : `Turno: ${cur.name} ${v.message ? '· ' + v.message : ''}`));
+    const send = (i: import('../net/protocol').ConductorIntent) => client?.send2(i);
+    if (v.review) {
+      const box = h('div', 'creview');
+      box.dataset.testid = 'creview';
+      box.append(h('div', '', `${v.players[v.review.player].name} ha scritto:`), h('b', '', `«${v.review.text}»`));
+      const row = h('div', 'prowbtn');
+      const ok = h('button', 'pbtn', 'ACCETTA'); ok.dataset.testid = 'c-accept'; ok.onclick = () => send({ k: 'accept' });
+      const no = h('button', 'pbtn', 'RIFIUTA'); no.dataset.testid = 'c-reject'; no.onclick = () => send({ k: 'reject' });
+      row.append(ok, no);
+      box.append(row);
+      root.append(box);
+    }
+    const acts = h('div', 'prowbtn wrap');
+    const mk = (label: string, tid: string, i: import('../net/protocol').ConductorIntent, dis = false) => {
+      const b = h('button', 'pbtn small', label); b.dataset.testid = tid; b.disabled = dis; b.onclick = () => send(i); acts.append(b);
+    };
+    const live = v.phase === 'turn' || v.phase === 'consonant';
+    mk('Accetta risposta a voce', 'c-voice', { k: 'accept' }, !live);
+    mk('Passa turno', 'c-pass', { k: 'pass' }, !live);
+    mk('Salta frase', 'c-skip', { k: 'skip' }, !live);
+    mk('Prossima frase', 'c-next', { k: 'next' }, v.phase !== 'roundEnd');
+    root.append(acts);
+    const sc = h('div', 'cscores');
+    v.players.forEach((p, i) => {
+      const r = h('div', 'crow');
+      r.style.borderLeftColor = p.color;
+      r.append(h('span', 'cn', `${p.name}${i === v.current ? ' ▶' : ''}`), h('b', '', `${p.round} (tot. ${p.total})`));
+      const minus = h('button', 'pbtn small', '−100'); minus.onclick = () => send({ k: 'adjust', player: i, delta: -100 });
+      const plus = h('button', 'pbtn small', '+100'); plus.onclick = () => send({ k: 'adjust', player: i, delta: 100 });
+      r.append(minus, plus);
+      sc.append(r);
+    });
+    root.append(sc);
+    const add = h('div', 'cadd');
+    const t = h('input', 'psolve-in'); t.placeholder = 'Nuova frase per le prossime partite'; t.dataset.testid = 'c-phrase';
+    const tm = h('input', 'psolve-in'); tm.placeholder = 'Tema'; tm.dataset.testid = 'c-tema';
+    const b = h('button', 'pbtn small', 'Salva frase'); b.dataset.testid = 'c-save';
+    b.onclick = () => { note = ''; send({ k: 'addPhrase', text: t.value, tema: tm.value }); };
+    add.append(t, tm, b, h('div', 'pmsg', v.note));
+    root.append(add);
   }
 
   function render() {
@@ -195,4 +257,5 @@ export function startPhone(body: HTMLElement, code: string) {
   joinForm();
   // Returning player: rejoin automatically with the saved name.
   if (roomToken && profile.name) connect();
+  void note;
 }

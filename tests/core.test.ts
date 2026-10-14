@@ -150,3 +150,28 @@ describe('phrase bank', () => {
     }
   });
 });
+
+describe('conductor interventions', () => {
+  const start = () => newGame(['A', 'B', 'C'], phrases, { ...DEFAULT_CONFIG });
+  it('force solve accepts a spoken answer', () => {
+    let s = start();
+    s = { ...s, players: s.players.map((p, i) => (i === 0 ? { ...p, round: 400 } : p)) };
+    s = reduce(s, { type: 'FORCE_SOLVE' });
+    expect(s.phase).toBe('roundEnd');
+    expect(s.players[0].total).toBe(400);
+  });
+  it('force pass, adjust and skip', () => {
+    let s = start();
+    s = reduce(s, { type: 'FORCE_PASS' });
+    expect(s.current).toBe(1);
+    s = reduce(s, { type: 'ADJUST', player: 2, delta: 300 });
+    expect(s.players[2].round).toBe(300);
+    s = reduce(s, { type: 'ADJUST', player: 2, delta: -1000 });
+    expect(s.players[2].round).toBe(0);
+    s = { ...s, called: ['C'] };
+    s = reduce(s, { type: 'SKIP', phrase: { text: 'NUOVA FRASE', tema: 'x' } });
+    expect(s.called).toEqual([]);
+    expect(s.phrases[0].text).toBe('NUOVA FRASE');
+    expect(s.phrases[1].text).toBe('PIZZA');
+  });
+});

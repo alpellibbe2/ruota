@@ -10,9 +10,19 @@ export type Intent =
   | { k: 'vowel'; l: string }
   | { k: 'solve'; text: string };
 
+export type ConductorIntent =
+  | { k: 'accept' }
+  | { k: 'reject' }
+  | { k: 'pass' }
+  | { k: 'adjust'; player: number; delta: number }
+  | { k: 'skip' }
+  | { k: 'next' }
+  | { k: 'addPhrase'; text: string; tema: string };
+
 export type ToHost =
-  | { t: 'join'; name: string; color: string; token: string }
-  | { t: 'intent'; i: Intent };
+  | { t: 'join'; name: string; color: string; token: string; role?: 'conductor' }
+  | { t: 'intent'; i: Intent }
+  | { t: 'cintent'; i: ConductorIntent };
 
 export interface LobbyPlayer { name: string; color: string; connected: boolean }
 
@@ -36,8 +46,18 @@ export interface PlayerView {
   eventId: number;
 }
 
+/** What the conductor sees: the player view plus the solution and any pending review. */
+export interface ConductorView extends PlayerView {
+  solution: string;
+  review: { player: number; text: string } | null;
+  /** Result of the last addPhrase, to show feedback. */
+  note: string;
+}
+
 export type ToClient =
   | { t: 'welcome'; you: number }
+  | { t: 'cwelcome' }
+  | { t: 'cview'; v: ConductorView }
   | { t: 'lobby'; players: LobbyPlayer[]; you: number }
   | { t: 'view'; v: PlayerView }
   | { t: 'rejected'; reason: string };
@@ -67,6 +87,12 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     deadline,
     eventId: s.event.id,
   };
+}
+
+export function buildConductorView(
+  s: GameState, connected: boolean[], deadline: number, review: ConductorView['review'], note = '',
+): ConductorView {
+  return { ...buildView(s, -1, connected, deadline), solution: currentPhrase(s).text, review, note };
 }
 
 export const ROOM_PREFIX = 'ruota-';

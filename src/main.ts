@@ -1,13 +1,15 @@
 import './ui/style.css';
 import { Action, Config, DEFAULT_CONFIG, GameState, PLAYER_COLORS, canBuyVowel, currentPhrase, newGame, ranking, reduce } from './core/game';
-import { pickPhrases } from './core/frasi';
+import { addCustom, pickPhrases, Source } from './core/frasi';
+import { checkSolution } from './core/phrase';
+import { showEditor } from './ui/editor';
 import { CONSONANTS, VOWELS } from './core/phrase';
 import { DEFAULT_WHEEL, spinAngle } from './core/wheel';
 import { BoardView } from './ui/boardView';
 import { WheelView } from './ui/wheelView';
 import { isMuted, setMuted, sfx } from './ui/audio';
 import { Host } from './net/host';
-import { buildView } from './net/protocol';
+import { buildConductorView, buildView, ConductorIntent } from './net/protocol';
 import { showLobby } from './ui/lobby';
 import { startPhone } from './ui/phone';
 
@@ -15,7 +17,7 @@ const SETTINGS_KEY = 'ruota.impostazioni';
 const TEST = new URLSearchParams(location.search).has('test');
 const SPEED = TEST ? 0.1 : 1;
 
-interface Settings { names: string[]; rounds: number; config: Config }
+interface Settings { names: string[]; rounds: number; config: Config; fonte?: Source }
 
 const stage = document.getElementById('stage')!;
 
@@ -86,6 +88,18 @@ function showSetup() {
   cb.onchange = () => { st.config = { ...st.config, bankruptAll: cb.checked }; };
   bankRow.append(cb, h('span', '', 'Bancarotta azzera anche il totale'));
 
+  const srcRow = h('div', 'row');
+  srcRow.append(h('span', '', 'Frasi'));
+  (['banca', 'mie', 'mix'] as Source[]).forEach((f) => {
+    const b = h('button', 'chip wide' + ((st.fonte ?? 'banca') === f ? ' on' : ''), f === 'banca' ? 'Banca' : f === 'mie' ? 'Solo mie' : 'Mescola');
+    b.dataset.testid = `fonte-${f}`;
+    b.onclick = () => { st.fonte = f; showSetupWith(st); };
+    srcRow.append(b);
+  });
+  const edit = h('button', 'chip wide', 'Editor frasi'); edit.dataset.testid = 'editor';
+  edit.onclick = () => showEditor(stage, showSetup);
+  srcRow.append(edit);
+
   const start = h('button', 'big', 'INIZIA (UN DISPOSITIVO)');
   start.dataset.testid = 'start';
   start.onclick = () => {
@@ -114,7 +128,7 @@ function showSetup() {
     };
     btns.append(resume);
   }
-  box.append(countRow, namesBox, roundsRow, bankRow, btns);
+  box.append(countRow, namesBox, roundsRow, srcRow, bankRow, btns);
   stage.append(box);
 }
 
@@ -139,12 +153,14 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   let state: GameState;
   if (resume) state = resume;
   else {
-    state = newGame(st.names, pickPhrases(st.rounds), st.config);
+    state = newGame(st.names, pickPhrases(st.rounds, undefined, undefined, st.fonte ?? 'banca'), st.config);
     if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
   }
   if (host) host.started = true;
   let deadline = 0;
   let timer = 0;
+  let review: { player: number; text: string } | null = null;
+  let note = '';
   let mode: 'menu' | 'vowel' | 'solve' = 'menu';
 
   stage.textContent = '';
@@ -176,6 +192,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     const prev = state;
     state = reduce(state, a);
     if (state === prev) return;
+    if (state.current !== prev.current || state.phase !== prev.phase) review = null;
     if (state.current !== prev.current || state.phase !== 'turn') mode = 'menu';
     render(prev);
     if (state.event.id !== prev.event.id) playEvent();
@@ -197,15 +214,45 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       localStorage.setItem(SESSION_KEY, JSON.stringify({ code: host.code, seats, settings: st, state }));
     } catch { /* storage full or unavailable */ }
   }
-  const broadcast = () => host?.broadcastView((i) => buildView(state, i, host.connected(), deadline));
+  const broadcast = () => {
+    if (!host) return;
+    host.broadcastView((i) => buildView(state, i, host.connected(), deadline));
+    host.sendConductor(buildConductorView(state, host.connected(), deadline, review, note));
+  };
   if (host) {
     host.onLobby = () => { broadcast(); renderScores(); };
+    host.onConductor = (i: ConductorIntent) => {
+      note = '';
+      if (i.k === 'accept') { review = null; dispatch({ type: 'FORCE_SOLVE' }); }
+      else if (i.k === 'reject') { review = null; dispatch({ type: 'SOLVE', text: '' }); }
+      else if (i.k === 'pass') { review = null; dispatch({ type: 'FORCE_PASS' }); }
+      else if (i.k === 'adjust') dispatch({ type: 'ADJUST', player: Number(i.player), delta: Math.max(-5000, Math.min(5000, Number(i.delta))) });
+      else if (i.k === 'skip') {
+        review = null;
+        dispatch({ type: 'SKIP', phrase: pickPhrases(1, undefined, undefined, st.fonte ?? 'banca')[0] });
+      }
+      else if (i.k === 'next') dispatch({ type: 'NEXT_ROUND' });
+      else if (i.k === 'addPhrase') {
+        note = addCustom(String(i.text), String(i.tema)) ?? 'Frase aggiunta ✓';
+        broadcast();
+      }
+    };
     host.onIntent = (seat, i) => {
-      if (seat !== state.current) return;
+      if (seat !== state.current || review) return;
       if (i.k === 'spin') void spin(Math.min(1, Math.max(0.2, Number(i.power) || 0.5)));
       else if (i.k === 'call') dispatch({ type: 'CALL', letter: String(i.l) });
       else if (i.k === 'vowel') dispatch({ type: 'BUY_VOWEL', letter: String(i.l) });
-      else if (i.k === 'solve') dispatch({ type: 'SOLVE', text: String(i.text).slice(0, 80) });
+      else if (i.k === 'solve') {
+        const text = String(i.text).slice(0, 80);
+        // With a human conductor, a wrong-looking answer waits for their verdict (typo, spoken variant…).
+        if (host.hasConductor() && state.phase === 'turn' && !checkSolution(text, currentPhrase(state).text, st.config.typoTolerance)) {
+          review = { player: seat, text };
+          clearTimeout(timer);
+          deadline = 0;
+          renderPanel();
+          broadcast();
+        } else dispatch({ type: 'SOLVE', text });
+      }
     };
   }
 
@@ -248,7 +295,17 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     panel.textContent = '';
     const called = new Set(state.called);
     const me = state.players[state.current];
-    if (host && state.phase !== 'roundEnd') {
+    if (host && review) {
+      panel.append(h('div', 'hint big-hint', `${state.players[review.player].name} risponde:`));
+      panel.append(h('div', 'hint quote', `«${review.text}»`));
+      const row = h('div', 'actions');
+      const ok = h('button', 'act spin', 'ACCETTA'); ok.dataset.testid = 'review-ok';
+      ok.onclick = () => host.onConductor({ k: 'accept' });
+      const no = h('button', 'act', 'RIFIUTA'); no.dataset.testid = 'review-no';
+      no.onclick = () => host.onConductor({ k: 'reject' });
+      row.append(ok, no);
+      panel.append(row);
+    } else if (host && state.phase !== 'roundEnd') {
       panel.append(h('div', 'hint big-hint', state.phase === 'spinning' ? 'La ruota gira…' : `Tocca a ${me.name}`));
       panel.append(h('div', 'hint sm', 'Usa il tuo telefono per giocare'));
     } else if (state.phase === 'spinning') {

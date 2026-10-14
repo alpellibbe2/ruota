@@ -1,7 +1,7 @@
 // Phone side: connects to the screen's room and keeps reconnecting.
 
 import Peer, { DataConnection } from 'peerjs';
-import { Intent, ROOM_PREFIX, ToClient, ToHost, peerOptions } from './protocol';
+import { ConductorIntent, Intent, ROOM_PREFIX, ToClient, ToHost, peerOptions } from './protocol';
 
 export class Client {
   onMessage: (m: ToClient) => void = () => {};
@@ -48,6 +48,10 @@ export class Client {
 
   send(i: Intent) {
     if (this.conn?.open) this.conn.send({ t: 'intent', i } satisfies ToHost);
+  }
+
+  send2(i: ConductorIntent) {
+    if (this.conn?.open) this.conn.send({ t: 'cintent', i } satisfies ToHost);
   }
 
   /** Update the profile used on the next (re)join. */

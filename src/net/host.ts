@@ -2,7 +2,7 @@
 
 import { PLAYER_COLORS } from '../core/game';
 import Peer, { DataConnection } from 'peerjs';
-import { LobbyPlayer, Intent, PlayerView, ROOM_PREFIX, ToClient, ToHost, peerOptions, roomCode } from './protocol';
+import { ConductorIntent, ConductorView, LobbyPlayer, Intent, PlayerView, ROOM_PREFIX, ToClient, ToHost, peerOptions, roomCode } from './protocol';
 
 interface Seat { token: string; name: string; color: string; conn: DataConnection | null }
 
@@ -12,6 +12,9 @@ export class Host {
   /** Called when a seated player sends an intent. */
   onIntent: (seat: number, i: Intent) => void = () => {};
   onLobby: () => void = () => {};
+  onConductor: (i: ConductorIntent) => void = () => {};
+  /** The optional human conductor (a phone that sees the solution). */
+  conductor: { token: string; conn: DataConnection | null } | null = null;
   started = false;
   private peer: Peer | null = null;
 
@@ -40,16 +43,39 @@ export class Host {
   private accept(conn: DataConnection) {
     conn.on('data', (raw) => {
       const m = raw as ToHost;
-      if (m.t === 'join') this.join(conn, m);
+      if (m.t === 'join' && m.role === 'conductor') this.joinConductor(conn, m.token);
+      else if (m.t === 'join') this.join(conn, m);
+      else if (m.t === 'cintent') { if (this.conductor?.conn === conn) this.onConductor(m.i); }
       else if (m.t === 'intent') {
         const seat = this.seats.findIndex((s) => s.conn === conn);
         if (seat >= 0) this.onIntent(seat, m.i);
       }
     });
     conn.on('close', () => {
+      if (this.conductor?.conn === conn) { this.conductor.conn = null; this.onLobby(); return; }
       const seat = this.seats.find((s) => s.conn === conn);
       if (seat) { seat.conn = null; this.onLobby(); }
     });
+  }
+
+  private joinConductor(conn: DataConnection, token: string) {
+    if (this.conductor && this.conductor.token !== token && this.conductor.conn?.open) {
+      this.send(conn, { t: 'rejected', reason: 'C\'è già un conduttore' });
+      return;
+    }
+    this.conductor?.conn?.close();
+    this.conductor = { token, conn };
+    this.send(conn, { t: 'cwelcome' });
+    this.onLobby();
+  }
+
+  hasConductor(): boolean {
+    return !!this.conductor?.conn;
+  }
+
+  sendConductor(v: ConductorView) {
+    const c = this.conductor?.conn;
+    if (c) this.send(c, { t: 'cview', v });
   }
 
   private join(conn: DataConnection, m: Extract<ToHost, { t: 'join' }>) {

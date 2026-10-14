@@ -45,7 +45,7 @@ export async function showLobby(stage: HTMLElement, st: Settings, onStart: (s: S
 
   box.textContent = '';
   const left = h('div', 'lobby-left');
-  left.append(h('p', 'sub', 'Inquadra il QR con il telefono'), qr, h('div', 'code', code), h('div', 'url', url.replace(/^https?:\/\//, '')));
+  left.append(h('p', 'sub', 'Inquadra il QR con il telefono (conduttore: premi «Sono il conduttore»)'), qr, h('div', 'code', code), h('div', 'url', url.replace(/^https?:\/\//, '')));
   const right = h('div', 'lobby-right');
   const list = h('div', 'plist');
   const start = h('button', 'big', 'INIZIA');
@@ -63,6 +63,9 @@ export async function showLobby(stage: HTMLElement, st: Settings, onStart: (s: S
       r.append(h('span', '', p.name));
       list.append(r);
     });
+    const cond = h('div', 'lp cond' + (host.hasConductor() ? '' : ' off'), host.hasConductor() ? 'Conduttore collegato' : 'Conduttore: automatico (nessun telefono)');
+    cond.dataset.testid = 'lobby-cond';
+    list.append(cond);
     if (!host.seats.length) list.append(h('div', 'empty', 'In attesa dei giocatori…'));
     start.disabled = host.seats.filter((s) => s.conn).length < 2;
     host.broadcastLobby();

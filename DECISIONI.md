@@ -13,3 +13,7 @@
 - Timer di risposta 15 s solo in modalità telefoni (host); scaduto → turno passa.
 - Colori duplicati: l'host assegna il primo colore libero.
 - Test pubblico PeerJS cloud non eseguito in e2e (solo server locale).
+- **Fase 3**: modalità conduttore = "umano" se un telefono-conduttore è collegato, altrimenti automatico (nessun interruttore a parte). Solo un conduttore alla volta.
+- Frasi personalizzate salvate sullo schermo (host); il conduttore può aggiungerne dal telefono (inviate all'host). Editor completo (elenco, elimina, export/import JSON) solo sullo schermo.
+- "Scegliere la manche successiva" da parte del conduttore rimandato alla Fase 4 (servono i tipi di manche); ora c'è «Prossima frase».
+- Penalità del conduttore: correzione ±100 al punteggio della manche per giocatore.

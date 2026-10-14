@@ -1,6 +1,6 @@
 // Game state machine: a pure reducer, no UI, no randomness (randomness is passed in actions).
 
-import { baseLetter, checkSolution, countLetter, hiddenLetters, isFullyRevealed, isVowel } from './phrase';
+import { baseLetter, checkSolution, countLetter, hiddenLetters, isFullyRevealed, isLetter, isVowel } from './phrase';
 import { DEFAULT_WHEEL, Segment, segmentAt } from './wheel';
 
 export interface Player { name: string; color: string; round: number; total: number }
@@ -41,7 +41,12 @@ export type Action =
   | { type: 'BUY_VOWEL'; letter: string }
   | { type: 'SOLVE'; text: string }
   | { type: 'TIMEOUT' }
-  | { type: 'NEXT_ROUND' };
+  | { type: 'NEXT_ROUND' }
+  // Host/conductor interventions
+  | { type: 'FORCE_SOLVE' }
+  | { type: 'FORCE_PASS' }
+  | { type: 'ADJUST'; player: number; delta: number }
+  | { type: 'SKIP'; phrase: PhraseItem };
 
 export const DEFAULT_CONFIG: Config = { vowelCost: 500, bankruptAll: true, typoTolerance: true };
 export const PLAYER_COLORS = ['#e53935', '#1e88e5', '#fdd835', '#43a047', '#8e24aa', '#fb8c00'];
@@ -117,6 +122,12 @@ function winRound(s: GameState, message: string): GameState {
   };
 }
 
+function allLetters(text: string): string[] {
+  const all = new Set<string>();
+  for (const ch of text) if (isLetter(ch)) all.add(baseLetter(ch));
+  return [...all];
+}
+
 export function reduce(s: GameState, a: Action): GameState {
   const phrase = currentPhrase(s);
   const called = new Set(s.called);
@@ -182,15 +193,32 @@ export function reduce(s: GameState, a: Action): GameState {
     case 'SOLVE': {
       if (s.phase !== 'turn') return s;
       if (checkSolution(a.text, phrase.text, s.config.typoTolerance)) {
-        const all = new Set<string>();
-        for (const ch of phrase.text) all.add(baseLetter(ch));
-        return winRound({ ...s, called: [...all].filter((c) => /[A-Z]/.test(c)) }, `${me.name} risolve!`);
+        return winRound({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
       }
       return passTurn(s, 'Soluzione sbagliata', 'wrong');
     }
     case 'TIMEOUT': {
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
       return passTurn(s, 'Tempo scaduto', 'miss');
+    }
+    case 'FORCE_SOLVE': {
+      if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
+      return winRound({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
+    }
+    case 'FORCE_PASS': {
+      if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
+      return passTurn(s, 'Turno passato dal conduttore', 'pass');
+    }
+    case 'ADJUST': {
+      const p = s.players[a.player];
+      if (!p || !Number.isFinite(a.delta)) return s;
+      const players = s.players.map((x, i) => (i === a.player ? { ...x, round: Math.max(0, x.round + a.delta) } : x));
+      return { ...s, players, message: `${p.name}: ${a.delta >= 0 ? '+' : ''}${a.delta}` };
+    }
+    case 'SKIP': {
+      if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
+      const phrases = s.phrases.map((x, i) => (i === s.round ? a.phrase : x));
+      return { ...s, phrases, called: [], phase: 'turn', landed: null, pending: 0, message: 'Nuova frase', event: emit(s, 'start') };
     }
     case 'NEXT_ROUND': {
       if (s.phase !== 'roundEnd') return s;
