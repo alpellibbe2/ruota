@@ -16,6 +16,7 @@ function ac(): AudioContext | null {
 export const setMuted = (m: boolean) => { muted = m; };
 export const isMuted = () => muted;
 export const setVolume = (v: number) => { volume = v; };
+export const getVolume = () => volume;
 
 function tone(freq: number, start: number, dur: number, type: OscillatorType = 'sine', gain = 0.3, endFreq?: number) {
   const c = ac();

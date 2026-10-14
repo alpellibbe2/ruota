@@ -174,6 +174,7 @@ export function startPhone(body: HTMLElement, code: string) {
   function render() {
     const v = view!;
     root.textContent = '';
+    root.classList.toggle('kids', v.kids);
     const me = v.players[v.you];
     const mine = v.current === v.you;
     const top = h('div', 'ptop');
@@ -307,7 +308,7 @@ export function startPhone(body: HTMLElement, code: string) {
       if (v.phase !== 'consonant') ctrl.append(back());
     } else if (mode === 'menu') {
       const row = h('div', 'prowbtn');
-      const vow = h('button', 'pbtn', `VOCALE (${v.vowelCost})`); vow.disabled = !v.canVowel; vow.dataset.testid = 'pvowel';
+      const vow = h('button', 'pbtn', v.vowelCost ? `VOCALE (${v.vowelCost})` : 'VOCALE (gratis)'); vow.disabled = !v.canVowel; vow.dataset.testid = 'pvowel';
       vow.onclick = () => { mode = 'vowel'; render(); };
       const sol = h('button', 'pbtn', 'RISOLVI'); sol.dataset.testid = 'psolve';
       sol.onclick = () => { mode = 'solve'; render(); };

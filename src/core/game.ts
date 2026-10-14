@@ -225,9 +225,13 @@ function winBoard(s: GameState, message: string): GameState {
   return finishBoard({ ...s, players, jackpotPot: me.jackpot ? 0 : s.jackpotPot }, s.current, message);
 }
 
+/** Typos accepted in a solution: one by default, two in kids mode, none when disabled. */
+export const tolerance = (c: Config): number => (c.kids ? 2 : c.typoTolerance ? 1 : 0);
+
 function checkAnswer(s: GameState, text: string): boolean {
   const ph = currentPhrase(s);
-  return ph.words ? checkWords(text, ph.words, s.config.typoTolerance) : checkSolution(text, ph.text, s.config.typoTolerance);
+  const tol = tolerance(s.config);
+  return ph.words ? checkWords(text, ph.words, tol) : checkSolution(text, ph.text, tol);
 }
 
 function grantToken(s: GameState, token: Token): Player[] {

@@ -1,9 +1,8 @@
 # PROGRESS
 
 ## Stato
-- **Fasi 1, 2, 3, 4 – COMPLETATE** (https://alpellibbe2.github.io/ruota/).
-- **Fase 5 – Ruota delle Meraviglie**: codice e test (vitest 46 + e2e 13) verdi. Deploy ok (HTTP 200). **Fase 5 COMPLETATA.**
-- Prossimo passo: Fase 6 (modalità bambini con banca frasi dedicata, banca frasi completa ~300 adulti + 100 bambini, rifinitura grafica/audio, PWA offline con service worker).
+- **Fasi 1–5 COMPLETATE**. **Fase 6** (bambini, banca frasi 355+120, PWA offline, rifiniture): codice e test verdi (vitest 48 + e2e 17). Resta deploy/verifica HTTP 200 + smoke test pubblico, poi RIEPILOGO-NOTTE.md e `.lavoro-finito`.
+- Sito: https://alpellibbe2.github.io/ruota/
 
 ## Struttura
 - `src/core/` logica pura (phrase, wheel, game reducer, frasi). Test in `tests/`.
@@ -20,3 +19,4 @@
 - Hook test: `?test` espone `window.__ruota.{state,dispatch,force(idx)}`.
 - Finale: `src/core/finale.ts` (FinaleState dentro `GameState.finale`, azioni F_*). Dopo l'ultima manche `toFinale` → NEXT_ROUND (con frase spareggio) → eventuale spareggio ultimo-round tra i pari → `phase: 'finale'`. Tick 60 s nel controller (main.ts `syncFinaleTimer`). Vista telefono del campione in phone.ts (`v.finale`). Spegnibile dalle impostazioni (checkbox).
 - I test e2e vecchi disattivano il finale con `finale-toggle`.
+- Fase 6: `config.kids` (setup: checkbox) → banca `bambini.json` (`setKidsMode`), preset senza Express, vocali gratis, Bancarotta solo manche, tolleranza 2 refusi, timer risposta 45 s, finale 1 tabellone/120 s, tastiera grande. PWA: `public/sw.js` (cache runtime + precache dei file caricati), `manifest.webmanifest`, icone generate.

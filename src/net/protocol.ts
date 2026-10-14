@@ -59,6 +59,7 @@ export interface PlayerView {
   boardNo: number;
   boards: number;
   finale?: FinaleView;
+  kids: boolean;
 }
 
 export interface FinaleView {
@@ -118,6 +119,7 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     excluded: s.excluded,
     boardNo: s.board - s.rounds[s.round].first,
     boards: s.rounds[s.round].count,
+    kids: !!s.config.kids,
     finale: s.finale && {
       stage: s.finale.stage, champion: s.finale.champion, kind: s.finale.kinds[s.finale.boardIdx], timeLeft: s.finale.timeLeft,
       won: s.finale.won, envelopes: s.finale.stage === 'wheel' ? [] : s.finale.envelopes.map((e) => e + 1),

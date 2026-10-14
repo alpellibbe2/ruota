@@ -49,6 +49,7 @@ export interface FinaleState {
   chosen: number | null;
   prize: number;
   message: string;
+  kids: boolean;
 }
 
 export type FinaleAction =
@@ -89,7 +90,7 @@ export function newFinale(champion: number, setup: FinaleSetup, kids = false): F
   const f: FinaleState = {
     champion, stage: 'wheel', phrases: setup.phrases.slice(0, kinds.length), values: setup.values, envelopes: [],
     wheelAngle: 0, landed: null, boardIdx: 0, kinds, called: [], forced: [], consonantsLeft: 0, vowelsLeft: 0,
-    timeLeft: kids ? FINALE_TIME_MS * 2 : FINALE_TIME_MS, won: kinds.map(() => false), chosen: null, prize: 0, message: '',
+    timeLeft: kids ? FINALE_TIME_MS * 2 : FINALE_TIME_MS, won: kinds.map(() => false), chosen: null, prize: 0, message: '', kids,
   };
   return f;
 }
@@ -153,7 +154,7 @@ export function finaleReduce(f: FinaleState, a: FinaleAction): FinaleState {
     case 'F_FORCE_SOLVE': {
       if (f.stage !== 'board') return f;
       const p = finalePhrase(f);
-      if (a.type === 'F_SOLVE' && !checkSolution(a.text, p.text, true)) return { ...f, message: 'Non è questa!' };
+      if (a.type === 'F_SOLVE' && !checkSolution(a.text, p.text, f.kids ? 2 : 1)) return { ...f, message: 'Non è questa!' };
       const won = f.won.map((w, i) => (i === f.boardIdx ? true : w));
       const all = new Set(p.text.split('').filter(isLetter).map(baseLetter));
       const done: FinaleState = { ...f, won, called: [...all], message: 'Esatto!' };

@@ -39,6 +39,12 @@ export const PRESET_ROUNDS: Record<Exclude<Preset, 'libera'>, RoundType[]> = {
   completa: ['classica', 'tema', 'express', 'cruciruota', 'ultimo'],
 };
 
+/** Kids mode has no Express. */
+export const PRESET_ROUNDS_KIDS: Record<Exclude<Preset, 'libera'>, RoundType[]> = {
+  veloce: ['classica', 'tema', 'ultimo'],
+  completa: ['classica', 'tema', 'cruciruota', 'tema', 'ultimo'],
+};
+
 /** Boards in a round of this type. */
 export const boardsIn = (t: RoundType) => (t === 'triplete' ? 3 : t === 'ultimo' ? 2 : 1);
 

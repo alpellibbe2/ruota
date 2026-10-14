@@ -175,3 +175,33 @@ describe('conductor interventions', () => {
     expect(s.phrases[1].text).toBe('PIZZA');
   });
 });
+
+import adultiRaw from '../src/data/frasi/adulti.json';
+import bambiniRaw from '../src/data/frasi/bambini.json';
+import { decodePhrase as dec } from '../src/core/frasi';
+describe('full phrase banks', () => {
+  it('has about 300 adult and 100 kids phrases that all fit the board, with unique ids', () => {
+    expect(adultiRaw.length).toBeGreaterThanOrEqual(300);
+    expect(bambiniRaw.length).toBeGreaterThanOrEqual(100);
+    const ids = new Set<string>();
+    for (const r of [...adultiRaw, ...bambiniRaw]) {
+      expect(ids.has(r.id)).toBe(false);
+      ids.add(r.id);
+      const t = dec(r.t);
+      expect(layoutBoard(t), t).not.toBeNull();
+    }
+    expect(bambiniRaw.every((r) => r.bambini)).toBe(true);
+    const texts = adultiRaw.map((r) => dec(r.t));
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+});
+
+describe('kids tolerance', () => {
+  it('accepts two typos on longer phrases in kids mode only', () => {
+    expect(checkSolution('il gatto sul divanu', 'IL GATTO SUL DIVANO', 2)).toBe(true);
+    expect(checkSolution('il gattu sul divanu', 'IL GATTO SUL DIVANO', 2)).toBe(true);
+    expect(checkSolution('il gattu sul divanu', 'IL GATTO SUL DIVANO', true)).toBe(false);
+    expect(checkSolution('il gattu sul divanu', 'IL GATTO SUL DIVANO', false)).toBe(false);
+    expect(checkSolution('gatti', 'GATTO', 2)).toBe(true);
+  });
+});

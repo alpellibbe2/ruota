@@ -1,6 +1,7 @@
 // Phrase bank loading. Phrases are stored rot13 + base64 so they are not readable in the public repo.
 
 import adulti from '../data/frasi/adulti.json';
+import bambini from '../data/frasi/bambini.json';
 import type { PhraseItem } from './rounds';
 import { BOARD_COLS, BOARD_ROWS, layoutBoard } from './phrase';
 
@@ -19,7 +20,11 @@ export function decodePhrase(t: string): string {
 
 export interface BankPhrase extends PhraseItem { id: string; categoria: string; bambini: boolean }
 
-export function loadBank(raw: RawPhrase[] = adulti as RawPhrase[]): BankPhrase[] {
+let kidsMode = false;
+/** Kids mode switches the default bank to the children's phrases. */
+export const setKidsMode = (on: boolean) => { kidsMode = on; };
+
+export function loadBank(raw: RawPhrase[] = (kidsMode ? bambini : adulti) as RawPhrase[]): BankPhrase[] {
   return raw.map((r) => ({ id: r.id, text: decodePhrase(r.t), tema: r.tema, categoria: r.categoria, bambini: r.bambini }));
 }
 
@@ -97,7 +102,7 @@ import triplete from '../data/frasi/triplete.json';
 import cruci from '../data/frasi/cruci.json';
 import { layoutCrossword } from './crossword';
 import { ENVELOPE_VALUES, FinaleSetup } from './finale';
-import { ROUND_NAMES, PRESET_ROUNDS, Preset, RoundSpec, RoundType, boardsIn } from './rounds';
+import { ROUND_NAMES, PRESET_ROUNDS, PRESET_ROUNDS_KIDS, Preset, RoundSpec, RoundType, boardsIn } from './rounds';
 
 interface RawSet { id: string; tema: string; t: string[] }
 
@@ -138,9 +143,9 @@ export function buildRound(type: RoundType, source: Source = 'banca', rnd: () =>
 }
 
 /** Round types for a preset (the last one of "completa" alternates Cruciruota/Triplete). */
-export function presetTypes(preset: Preset, custom: RoundType[], rnd: () => number = Math.random): RoundType[] {
-  if (preset === 'libera') return custom;
-  const t = [...PRESET_ROUNDS[preset]];
+export function presetTypes(preset: Preset, custom: RoundType[], rnd: () => number = Math.random, kids = false): RoundType[] {
+  if (preset === 'libera') return kids ? custom.map((t) => (t === 'express' ? 'classica' : t)) : custom;
+  const t = [...(kids ? PRESET_ROUNDS_KIDS : PRESET_ROUNDS)[preset]];
   if (preset === 'completa' && rnd() < 0.5) t[3] = 'triplete';
   return t;
 }

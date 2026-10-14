@@ -44,15 +44,16 @@ function levenshtein(a: string, b: string): number {
 }
 
 /** Accepts the exact solution, or one typo when the solution is long enough. */
-export function checkSolution(answer: string, solution: string, typoTolerance = true): boolean {
+export function checkSolution(answer: string, solution: string, typoTolerance: boolean | number = true): boolean {
   const a = normalizeText(answer);
   const s = normalizeText(solution);
   if (!a) return false;
   if (a === s) return true;
-  if (!typoTolerance || s.length < 8) return false;
+  const max = typoTolerance === true ? 1 : typoTolerance === false ? 0 : typoTolerance;
+  if (max === 0 || s.length < (max >= 2 ? 5 : 8)) return false;
   // tolerance must not turn spaces into different word counts
   if (a.split(' ').length !== s.split(' ').length) return false;
-  return levenshtein(a, s) <= 1;
+  return levenshtein(a, s) <= max;
 }
 
 /**
@@ -114,7 +115,7 @@ export function hiddenLetters(text: string, called: Set<string>, vowel: boolean)
 }
 
 /** Check a Cruciruota answer: the list of all words, in any order (separators: spaces, commas, newlines). */
-export function checkWords(answer: string, words: string[], typoTolerance = true): boolean {
+export function checkWords(answer: string, words: string[], typoTolerance: boolean | number = true): boolean {
   const given = normalizeText(answer).split(' ').filter(Boolean);
   if (given.length !== words.length) return false;
   const left = [...words];

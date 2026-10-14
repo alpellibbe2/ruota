@@ -5,12 +5,14 @@ import { addCustom, buildFinale, buildGame, buildRound, presetTypes, Source } fr
 import { BOARD_TITLES, finaleKind, ENVELOPE_COUNT } from './core/finale';
 import { ROUND_NAMES, ROUND_RULES, ROUND_TYPES, Preset, RoundType } from './core/rounds';
 import { checkSolution, checkWords, hiddenLetters } from './core/phrase';
+import { setKidsMode } from './core/frasi';
+import { tolerance } from './core/game';
 import { showEditor } from './ui/editor';
 import { CONSONANTS, VOWELS } from './core/phrase';
 import { segmentAt, spinAngle } from './core/wheel';
 import { BoardView } from './ui/boardView';
 import { WheelView } from './ui/wheelView';
-import { isMuted, setMuted, sfx } from './ui/audio';
+import { getVolume, isMuted, setMuted, setVolume, sfx } from './ui/audio';
 import { Host } from './net/host';
 import { buildConductorView, buildView, ConductorIntent } from './net/protocol';
 import { showLobby } from './ui/lobby';
@@ -48,7 +50,7 @@ function showSetup() {
   const st = loadSettings();
   stage.textContent = '';
   const box = h('div', 'setup');
-  box.append(h('h1', 'logo', 'LA RUOTA'), h('p', 'sub', 'Gioco da salotto – tutto su un dispositivo'));
+  box.append(h('h1', 'logo', 'LA RUOTA'), h('p', 'sub', 'Gioco da salotto'));
 
   const namesBox = h('div', 'names');
   const renderNames = () => {
@@ -99,7 +101,7 @@ function showSetup() {
     const custom = st.custom ?? [];
     for (let i = 0; i < st.rounds; i++) {
       const sel = h('select', 'rsel'); sel.dataset.testid = `round-type-${i}`;
-      for (const t of ROUND_TYPES) { const o = h('option', '', ROUND_NAMES[t]); o.value = t; sel.append(o); }
+      for (const t of ROUND_TYPES.filter((x) => !(st.config.kids && x === 'express'))) { const o = h('option', '', ROUND_NAMES[t]); o.value = t; sel.append(o); }
       sel.value = custom[i] ?? 'classica';
       sel.onchange = () => { const c = [...(st.custom ?? [])]; while (c.length <= i) c.push('classica'); c[i] = sel.value as RoundType; st.custom = c; localStorage.setItem(SETTINGS_KEY, JSON.stringify(st)); };
       kinds.append(sel);
@@ -129,6 +131,16 @@ function showSetup() {
   fcb.onchange = () => { st.config = { ...st.config, finale: fcb.checked }; };
   finRow.append(fcb, h('span', '', 'Gioco finale: La Ruota delle Meraviglie'));
 
+  const kidsRow = h('label', 'row');
+  const kcb = h('input'); kcb.type = 'checkbox'; kcb.checked = !!st.config.kids; kcb.dataset.testid = 'kids-toggle';
+  kcb.onchange = () => {
+    st.config = kcb.checked
+      ? { ...st.config, kids: true, bankruptAll: false, vowelCost: 0 }
+      : { ...st.config, kids: false, bankruptAll: DEFAULT_CONFIG.bankruptAll, vowelCost: DEFAULT_CONFIG.vowelCost };
+    showSetupWith(st);
+  };
+  kidsRow.append(kcb, h('span', '', 'Modalità bambini (frasi semplici, niente Express, vocali gratis)'));
+
   const start = h('button', 'big', 'INIZIA (UN DISPOSITIVO)');
   start.dataset.testid = 'start';
   start.onclick = () => {
@@ -157,7 +169,7 @@ function showSetup() {
     };
     btns.append(resume);
   }
-  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, bankRow, finRow, btns);
+  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, kidsRow, bankRow, finRow, btns);
   stage.append(box);
 }
 
@@ -176,14 +188,16 @@ function showSetupWith(st: Settings) {
 }
 
 // ───────────────────────── game screen ─────────────────────────
-const ANSWER_MS = Number(new URLSearchParams(location.search).get('t')) || 15000;
+const ANSWER_PARAM = Number(new URLSearchParams(location.search).get('t'));
 
 export function startGame(st: Settings, host?: Host, resume?: GameState) {
+  const ANSWER_MS = ANSWER_PARAM || (st.config.kids ? 45000 : 15000);
+  setKidsMode(!!st.config.kids);
   let state: GameState;
   if (resume) state = resume;
   else {
     const custom = Array.from({ length: st.rounds }, (_, i) => st.custom?.[i] ?? 'classica');
-    const { phrases, rounds } = buildGame(presetTypes(st.preset ?? 'completa', custom), st.fonte ?? 'banca');
+    const { phrases, rounds } = buildGame(presetTypes(st.preset ?? 'completa', custom, Math.random, !!st.config.kids), st.fonte ?? 'banca');
     state = newGame(st.names, phrases, st.config, rounds, st.config.finale === false ? undefined : buildFinale());
     if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
   }
@@ -199,6 +213,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   let fmode: 'cons' | 'vowel' | 'solve' = 'cons';
 
   stage.textContent = '';
+  stage.classList.toggle('kids', !!st.config.kids);
   const wheel = new WheelView(state.wheel);
   const board = new BoardView();
   const pendingEl = h('div', 'pending');
@@ -210,8 +225,11 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   const roundTag = h('div', 'roundtag');
   const mute = h('button', 'mute', isMuted() ? '🔇' : '🔊');
   mute.onclick = () => { setMuted(!isMuted()); mute.textContent = isMuted() ? '🔇' : '🔊'; };
+  const vol = h('input', 'vol'); vol.type = 'range'; vol.min = '0'; vol.max = '1'; vol.step = '0.05'; vol.value = String(getVolume());
+  vol.dataset.testid = 'volume';
+  vol.oninput = () => setVolume(Number(vol.value));
   const overlay = h('div', 'overlay hidden');
-  stage.append(left, right, scores, roundTag, mute, overlay);
+  stage.append(left, right, scores, roundTag, vol, mute, overlay);
 
   let swipeStart: { y: number; t: number } | null = null;
   wheel.el.onpointerdown = (e) => { swipeStart = { y: e.clientY, t: performance.now() }; };
@@ -352,7 +370,20 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
 
   function looksRight(text: string): boolean {
     const ph = currentPhrase(state);
-    return ph.words ? checkWords(text, ph.words, st.config.typoTolerance) : checkSolution(text, ph.text, st.config.typoTolerance);
+    return ph.words ? checkWords(text, ph.words, tolerance(state.config)) : checkSolution(text, ph.text, tolerance(state.config));
+  }
+
+  function confetti() {
+    const colors = ['#e53935', '#fdd835', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00'];
+    for (let i = 0; i < 70; i++) {
+      const p = h('i', 'confetto');
+      p.style.left = `${Math.random() * 100}%`;
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = `${Math.random() * 0.8}s`;
+      p.style.animationDuration = `${2.2 + Math.random() * 1.5}s`;
+      stage.append(p);
+      setTimeout(() => p.remove(), 4500);
+    }
   }
 
   function playEvent() {
@@ -364,7 +395,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       case 'miss': case 'wrong': sfx.buzzer(); break;
       case 'pass': sfx.pass(); break;
       case 'bankrupt': sfx.bankrupt(); break;
-      case 'roundEnd': case 'gameEnd': sfx.win(); break;
+      case 'roundEnd': case 'gameEnd': sfx.win(); confetti(); break;
       case 'value': sfx.vowel(); break;
       case 'jolly': case 'express': sfx.fanfare(); break;
       case 'book': sfx.book(); break;
@@ -534,7 +565,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
           spinB.onclick = () => spin(0.3 + Math.random() * 0.7);
           row.append(spinB);
         }
-        const vow = h('button', 'act', `COMPRA VOCALE (${state.config.vowelCost})`); vow.dataset.testid = 'vowel';
+        const vow = h('button', 'act', state.config.vowelCost ? `COMPRA VOCALE (${state.config.vowelCost})` : 'VOCALE (gratis)'); vow.dataset.testid = 'vowel';
         vow.disabled = !canBuyVowel(state);
         vow.onclick = () => { mode = 'vowel'; renderPanel(); };
         const sol = h('button', 'act', 'RISOLVI'); sol.dataset.testid = 'solve';
@@ -678,3 +709,15 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
 const room = new URLSearchParams(location.search).get('r');
 if (room) startPhone(document.body, room.toUpperCase());
 else showSetup();
+
+// Offline support: register the service worker (production build only) and ask it to cache what we loaded.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(() => navigator.serviceWorker.ready).then((reg) => {
+      const urls = [location.href.split('#')[0], new URL('./', location.href).href,
+        ...['manifest.webmanifest', 'icon.svg', 'icon-192.png'].map((f) => new URL(f, location.href).href), ...performance.getEntriesByType('resource').map((r) => r.name)]
+        .filter((u) => u.startsWith(location.origin) || u.includes('fonts.g'));
+      reg.active?.postMessage({ type: 'precache', urls });
+    }).catch(() => { /* offline mode is optional */ });
+  });
+}

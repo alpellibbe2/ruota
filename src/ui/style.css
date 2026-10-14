@@ -152,3 +152,29 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .score.env .pname { font-size: 26px; }
 .score.env .pround { font-size: 44px; }
 .score.env .ptotal { font-size: 22px; min-height: 28px; }
+
+/* kids mode: bigger letters */
+.kids .key { width: 104px; height: 84px; font-size: 52px; }
+.kids .kb { gap: 8px; }
+.phone.kids .pkey { font-size: 40px; padding: 16px 0; }
+
+/* polish */
+.pointer { transform-origin: 50% 0; }
+.mute { right: 24px; }
+.vol { position: absolute; right: 80px; top: 18px; width: 160px; accent-color: #f5c518; }
+.confetto { position: absolute; top: -30px; width: 16px; height: 26px; border-radius: 3px; pointer-events: none; z-index: 20; animation: fall 3s linear forwards; }
+@keyframes fall { to { transform: translateY(1150px) rotate(720deg); } }
+
+/* compact setup so everything fits 1080px */
+.setup { gap: 10px; }
+.setup .logo { font-size: 96px; letter-spacing: 6px; }
+.setup .sub { margin: 0; font-size: 26px; }
+.setup .row { font-size: 28px; gap: 12px; }
+.setup .row > span:first-child { min-width: 200px; }
+.setup .chip { width: 56px; height: 56px; font-size: 28px; }
+.setup .chip.wide { width: auto; height: auto; padding: 8px 22px; font-size: 26px; }
+.setup .name-row input { font-size: 26px; padding: 4px 14px; width: 300px; }
+.setup .dot { width: 28px; height: 28px; }
+.setup .big { font-size: 36px; padding: 10px 34px; margin-top: 6px; box-shadow: 0 6px 0 #b8860b; }
+.setup .big.alt { font-size: 36px; box-shadow: 0 6px 0 #9fa8da; }
+.setup .row .big { margin-top: 0; }

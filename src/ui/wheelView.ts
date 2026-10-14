@@ -17,6 +17,7 @@ function segBg(seg: Segment, i: number): string {
 export class WheelView {
   readonly el: HTMLElement;
   private canvas: HTMLCanvasElement;
+  private pointer: HTMLElement;
   private angle = 0;
   private raf = 0;
 
@@ -26,9 +27,9 @@ export class WheelView {
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.canvas.height = SIZE;
     this.el.append(this.canvas);
-    const pointer = document.createElement('div');
-    pointer.className = 'pointer';
-    this.el.append(pointer);
+    this.pointer = document.createElement('div');
+    this.pointer.className = 'pointer';
+    this.el.append(this.pointer);
     this.draw(wheel);
   }
 
@@ -86,7 +87,12 @@ export class WheelView {
         const a = from + (target - from) * e;
         this.setAngle(a);
         const seg = segmentAt(a);
-        if (seg !== lastSeg) { lastSeg = seg; sfx.tick(); }
+        if (seg !== lastSeg) {
+          lastSeg = seg;
+          sfx.tick();
+          // the pointer flicks as each peg passes
+          this.pointer.animate([{ transform: 'rotate(-14deg)' }, { transform: 'rotate(0deg)' }], { duration: 90 });
+        }
         if (t < 1) this.raf = requestAnimationFrame(step);
         else resolve();
       };
