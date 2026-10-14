@@ -2,7 +2,7 @@
 
 ## Stato
 - **Fasi 1, 2, 3 – COMPLETATE** (https://alpellibbe2.github.io/ruota/).
-- **Fase 4 – Manche speciali**: codice e test (vitest 35 + e2e) verdi. Deploy: vedi sotto.
+- **Fase 4 – Manche speciali**: codice e test (vitest 35 + e2e) verdi. Deploy ok (HTTP 200). **Fase 4 COMPLETATA.**
 - Prossimo passo: Fase 5 (Ruota delle Meraviglie: gioco finale, 24 buste, 60 s, 3 tabelloni: classico / Testacoda / Rubasecondi). Va aggiunto come fase dopo l'ultima manche (`phase: 'finale'`), con un modulo `src/core/finale.ts` separato dal reducer e vista telefono del campione.
 
 ## Struttura
