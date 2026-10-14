@@ -112,3 +112,16 @@ export function hiddenLetters(text: string, called: Set<string>, vowel: boolean)
   }
   return [...set];
 }
+
+/** Check a Cruciruota answer: the list of all words, in any order (separators: spaces, commas, newlines). */
+export function checkWords(answer: string, words: string[], typoTolerance = true): boolean {
+  const given = normalizeText(answer).split(' ').filter(Boolean);
+  if (given.length !== words.length) return false;
+  const left = [...words];
+  for (const g of given) {
+    const i = left.findIndex((w) => checkSolution(g, w, typoTolerance));
+    if (i < 0) return false;
+    left.splice(i, 1);
+  }
+  return true;
+}

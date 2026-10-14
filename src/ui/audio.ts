@@ -59,6 +59,8 @@ export const sfx = {
   pass: () => { tone(440, 0, 0.2, 'triangle', 0.3); tone(330, 0.2, 0.3, 'triangle', 0.3); },
   bankrupt: () => { [600, 500, 400, 300, 200, 120].forEach((f, i) => tone(f, i * 0.15, 0.3, 'sawtooth', 0.28)); },
   vowel: () => { tone(660, 0, 0.25, 'triangle', 0.3); },
+  fanfare: () => { [523, 659, 784].forEach((f, i) => tone(f, i * 0.1, 0.25, 'square', 0.15)); },
+  book: () => { tone(988, 0, 0.12, 'square', 0.2); tone(1319, 0.1, 0.2, 'square', 0.2); },
   spin: () => noise(0, 0.4, 0.15, 800),
   applause: () => { for (let i = 0; i < 40; i++) noise(i * 0.05, 0.08, 0.12, 1500 + Math.random() * 3000); },
   win: () => {

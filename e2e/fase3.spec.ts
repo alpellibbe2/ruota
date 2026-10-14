@@ -19,6 +19,7 @@ test('conduttore umano: verifica, accetta/rifiuta, correzioni, salta frase', asy
   await host.goto(`/?test&${PEER}&t=60000`);
   await host.evaluate(() => localStorage.clear());
   await host.reload();
+  await host.getByTestId('preset-libera').click();
   await host.getByTestId('rounds-2').click();
   await host.getByTestId('phones').click();
   const code = (await host.locator('.lobby').getAttribute('data-code')) ?? (await host.waitForSelector('.lobby[data-code]').then((e) => e.getAttribute('data-code')))!;
@@ -110,6 +111,7 @@ test('editor frasi personalizzate: aggiungi, usa solo mie, esporta e importa', a
   await page.getByTestId('ed-back').click();
 
   await page.getByTestId('fonte-mie').click();
+  await page.getByTestId('preset-libera').click();
   await page.getByTestId('rounds-1').click();
   await page.getByTestId('start').click();
   const s = await st(page);

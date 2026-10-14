@@ -1,0 +1,74 @@
+[
+ {
+  "id": "t1",
+  "tema": "Cielo e tempo",
+  "t": [
+   "SEEgU0hZWlZBUiBOIFBWUlkgRlJFUkFC",
+   "QUhJQllSIEFSRVIgTllZJ0JFVk1NQkFHUg==",
+   "SEEgTkVQQk9OWVJBQiBRQkNCIFlOIENWQlRUVk4="
+  ]
+ },
+ {
+  "id": "t2",
+  "tema": "In spiaggia",
+  "t": [
+   "SEEgUE5GR1JZWUIgUVYgRk5PT1ZO",
+   "WSdCWk9FUllZQkFSIE4gRVZUVVI=",
+   "SEEgT05UQUIgTllZJ05ZT04="
+  ]
+ },
+ {
+  "id": "t3",
+  "tema": "A tavola",
+  "t": [
+   "SEEgQ1ZOR0dCIFFWIENORkdO",
+   "SEEgT1ZQUFVWUkVSIFFWIElWQUIgRUJGRkI=",
+   "SEFOIFNSR0dOIFFWIEdCRUdO"
+  ]
+ },
+ {
+  "id": "t4",
+  "tema": "In montagna",
+  "t": [
+   "SEFOIENORkZSVFRWTkdOIEFSWSBPQkZQQg==",
+   "WU4gQVJJUiBGSFlZUiBJUkdHUg==",
+   "SEEgRVZTSFRWQiBOWUNWQUI="
+  ]
+ },
+ {
+  "id": "t5",
+  "tema": "In città",
+  "t": [
+   "VlkgR0VOWiBRUllZUiBCR0dC",
+   "SEEgUE5TU8OIIE5ZIE9OQVBCQVI=",
+   "WU4gQ1ZOTU1OIFFSWSBaUkVQTkdC"
+  ]
+ },
+ {
+  "id": "t6",
+  "tema": "Il weekend",
+  "t": [
+   "SEFOIFRWR04gU0hCRVYgQ0JFR04=",
+   "VlkgUFZBUlpOIFFSWSBGTk9OR0IgRlJFTg==",
+   "SEEgQ0VOQU1CIFFOWVlOIEFCQUFO"
+  ]
+ },
+ {
+  "id": "t7",
+  "tema": "Animali domestici",
+  "t": [
+   "VlkgUE5BUiBQVVIgTk9PTlZO",
+   "SEEgVE5HR0IgRkhZIFFWSU5BQg==",
+   "VlkgUEVWUFJHQiBBUllZTiBFSEJHTg=="
+  ]
+ },
+ {
+  "id": "t8",
+  "tema": "Feste",
+  "t": [
+   "WU4gR0JaT0JZTiBRViBBTkdOWVI=",
+   "ViBQQkVWTkFRQllWIFFWIFBORUFSSU5ZUg==",
+   "WVIgSEJJTiBRViBDTkZESE4="
+  ]
+ }
+]

@@ -1,7 +1,7 @@
 // Phrase bank loading. Phrases are stored rot13 + base64 so they are not readable in the public repo.
 
 import adulti from '../data/frasi/adulti.json';
-import type { PhraseItem } from './game';
+import type { PhraseItem } from './rounds';
 import { BOARD_COLS, BOARD_ROWS, layoutBoard } from './phrase';
 
 interface RawPhrase { id: string; t: string; categoria: string; tema: string; difficolta: number; bambini: boolean }
@@ -91,3 +91,68 @@ export function pickPhrases(n: number, bank: BankPhrase[] = loadBank(), rnd: () 
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify([...used, ...picked.map((p) => p.id)])); } catch { /* ignore */ }
   return picked;
 }
+
+// ───────────── rounds ─────────────
+import triplete from '../data/frasi/triplete.json';
+import cruci from '../data/frasi/cruci.json';
+import { layoutCrossword } from './crossword';
+import { ROUND_NAMES, PRESET_ROUNDS, Preset, RoundSpec, RoundType, boardsIn } from './rounds';
+
+interface RawSet { id: string; tema: string; t: string[] }
+
+const pickOne = <T>(a: T[], rnd: () => number) => a[Math.floor(rnd() * a.length)];
+
+/** Phrases for one round of the given type. */
+export function buildRound(type: RoundType, source: Source = 'banca', rnd: () => number = Math.random): PhraseItem[] {
+  const item = (b: BankPhrase): PhraseItem => ({ text: b.text, tema: b.tema });
+  switch (type) {
+    case 'triplete': {
+      const set = pickOne(triplete as RawSet[], rnd);
+      return set.t.map((t) => ({ text: decodePhrase(t), tema: set.tema }));
+    }
+    case 'cruciruota': {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const set = pickOne(cruci as RawSet[], rnd);
+        const cw = layoutCrossword(set.t.map(decodePhrase));
+        if (cw) return [{ text: cw.words.join(' '), tema: set.tema, grid: cw, words: cw.words }];
+      }
+      return pickPhrases(1, undefined, rnd, source).map(item);
+    }
+    case 'tema': {
+      const themed = loadBank().filter((b) => b.categoria !== 'Modo di dire');
+      return [item(pickOne(themed, rnd))];
+    }
+    case 'ultimo': {
+      const short = loadBank().filter((b) => b.text.replace(/[^A-ZÀ-Ù]/g, '').length <= 14);
+      const out: PhraseItem[] = [];
+      while (out.length < boardsIn('ultimo')) {
+        const p = item(pickOne(short, rnd));
+        if (!out.some((o) => o.text === p.text)) out.push(p);
+      }
+      return out;
+    }
+    default:
+      return pickPhrases(1, undefined, rnd, source).map(item);
+  }
+}
+
+/** Round types for a preset (the last one of "completa" alternates Cruciruota/Triplete). */
+export function presetTypes(preset: Preset, custom: RoundType[], rnd: () => number = Math.random): RoundType[] {
+  if (preset === 'libera') return custom;
+  const t = [...PRESET_ROUNDS[preset]];
+  if (preset === 'completa' && rnd() < 0.5) t[3] = 'triplete';
+  return t;
+}
+
+export function buildGame(types: RoundType[], source: Source = 'banca', rnd: () => number = Math.random): { phrases: PhraseItem[]; rounds: RoundSpec[] } {
+  const phrases: PhraseItem[] = [];
+  const rounds: RoundSpec[] = types.map((type) => {
+    const ph = buildRound(type, source, rnd);
+    const first = phrases.length;
+    phrases.push(...ph);
+    return { type, first, count: ph.length };
+  });
+  return { phrases, rounds };
+}
+
+export { ROUND_NAMES };

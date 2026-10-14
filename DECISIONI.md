@@ -17,3 +17,10 @@
 - Frasi personalizzate salvate sullo schermo (host); il conduttore può aggiungerne dal telefono (inviate all'host). Editor completo (elenco, elimina, export/import JSON) solo sullo schermo.
 - "Scegliere la manche successiva" da parte del conduttore rimandato alla Fase 4 (servono i tipi di manche); ora c'è «Prossima frase».
 - Penalità del conduttore: correzione ±100 al punteggio della manche per giocatore.
+- **Fase 4 – interpretazioni** (*): Jolly vale nelle prime 3 manche (assorbe Passa, Bancarotta, consonante assente, soluzione errata; non il timeout) e si consuma; Premio = +2000 al vincitore della manche, perso con Bancarotta; Jackpot = montepremi che raccoglie tutti i punti guadagnati nella manche, preso dal possessore del gettone se risolve.
+- Express: spicchio fucsia = valore normale 500 se ci si ferma; entrando, ogni consonante 1000, vocali a costo, errore = azzera i punti della manche e passa. Tastiera consonanti resta aperta in Express.
+- Triplete: 3 frasi; chi risolve una frase incassa i propri punti-manche (gli altri li tengono per le frasi successive, azzerati a fine manche). Ultimo Round: 2 frasi, 1000 a frase, chi sbaglia è escluso dalla frase, lettere ogni 2,5 s.
+- Cruciruota: risposta = tutte le parole in qualsiasi ordine; lettere in celle incrociate contate una volta. Frase "A tema" = frase non "Modo di dire".
+- Layout: tessere con dimensione fissa per tabellone (altezza massima 400 px) per far stare il cruciverba.
+- Conduttore può scegliere il tipo di manche successiva (select nella vista conduttore).
+- Wheel: 24 spicchi, jolly a indice 9, premio 17, express 1/8/19 (solo manche Express), jackpot 14 (solo Jackpot).

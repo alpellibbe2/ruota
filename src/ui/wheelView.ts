@@ -4,6 +4,16 @@ import { sfx } from './audio';
 const COLORS = ['#e53935', '#fdd835', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00acc1', '#d81b60'];
 const SIZE = 800;
 
+function segBg(seg: Segment, i: number): string {
+  if (seg.kind === 'bankrupt') return '#111';
+  if (seg.kind === 'pass') return '#f5f5f5';
+  if (seg.kind === 'express') return '#ff1fa9';
+  if (seg.token === 'jolly') return '#00e676';
+  if (seg.token === 'premio') return '#ffab00';
+  if (seg.token === 'jackpot') return '#b71c1c';
+  return COLORS[i % COLORS.length];
+}
+
 export class WheelView {
   readonly el: HTMLElement;
   private canvas: HTMLCanvasElement;
@@ -22,6 +32,8 @@ export class WheelView {
     this.draw(wheel);
   }
 
+  setWheel(wheel: Segment[]) { this.draw(wheel); }
+
   private draw(wheel: Segment[]) {
     const g = this.canvas.getContext('2d')!;
     const c = SIZE / 2;
@@ -33,7 +45,8 @@ export class WheelView {
       const a0 = (i * SEGMENT_ANGLE - 90) * Math.PI / 180;
       const a1 = ((i + 1) * SEGMENT_ANGLE - 90) * Math.PI / 180;
       g.beginPath(); g.moveTo(c, c); g.arc(c, c, R, a0, a1); g.closePath();
-      g.fillStyle = seg.kind === 'bankrupt' ? '#111' : seg.kind === 'pass' ? '#f5f5f5' : COLORS[i % COLORS.length];
+      const bg = segBg(seg, i);
+      g.fillStyle = bg;
       g.fill();
       g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke();
       g.save();
@@ -41,8 +54,8 @@ export class WheelView {
       g.rotate((a0 + a1) / 2);
       g.textAlign = 'right'; g.textBaseline = 'middle';
       const label = segmentLabel(seg);
-      g.fillStyle = seg.kind === 'bankrupt' ? '#fff' : seg.kind === 'pass' ? '#222' : (i % COLORS.length === 1 ? '#222' : '#fff');
-      g.font = seg.kind === 'value' ? '800 46px "Baloo 2", sans-serif' : '800 30px "Baloo 2", sans-serif';
+      g.fillStyle = ['#f5f5f5', '#fdd835', '#00e676', '#ffab00'].includes(bg) ? '#222' : bg === '#b71c1c' ? '#ffd600' : '#fff';
+      g.font = seg.kind === 'value' && !seg.token ? '800 46px "Baloo 2", sans-serif' : '800 30px "Baloo 2", sans-serif';
       g.fillText(label, R - 26, 0);
       g.restore();
     });

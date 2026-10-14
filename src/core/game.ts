@@ -1,36 +1,55 @@
 // Game state machine: a pure reducer, no UI, no randomness (randomness is passed in actions).
 
-import { baseLetter, checkSolution, countLetter, hiddenLetters, isFullyRevealed, isLetter, isVowel } from './phrase';
-import { DEFAULT_WHEEL, Segment, segmentAt } from './wheel';
+import { occurrences } from './board';
+import { baseLetter, checkSolution, checkWords, hiddenLetters, isFullyRevealed, isLetter, isVowel } from './phrase';
+import {
+  EXPRESS_SEGMENT_VALUE, EXPRESS_VALUE, JOLLY_ROUNDS, PREMIO_BONUS, ULTIMO_VALUE,
+  PhraseItem, RoundSpec, RoundType, wheelFor,
+} from './rounds';
+import { Segment, segmentAt, Token } from './wheel';
 
-export interface Player { name: string; color: string; round: number; total: number }
-export interface PhraseItem { text: string; tema: string }
+export type { PhraseItem } from './rounds';
+
+export interface Player {
+  name: string; color: string; round: number; total: number;
+  jolly: boolean; premio: boolean; jackpot: boolean;
+}
 export interface Config { vowelCost: number; bankruptAll: boolean; typoTolerance: boolean }
 
-export type Phase = 'turn' | 'spinning' | 'consonant' | 'roundEnd' | 'gameEnd';
+export type Phase =
+  | 'turn' | 'spinning' | 'consonant' | 'expressOffer' | 'ultimo' | 'booked' | 'roundEnd' | 'gameEnd';
 
 export type GameEvent =
   | 'start' | 'spin' | 'value' | 'pass' | 'bankrupt' | 'hit' | 'miss'
-  | 'vowel' | 'solved' | 'wrong' | 'roundEnd' | 'gameEnd';
+  | 'vowel' | 'solved' | 'wrong' | 'roundEnd' | 'gameEnd' | 'jolly' | 'token' | 'express' | 'book' | 'reveal';
 
 export interface GameState {
   config: Config;
   players: Player[];
   wheel: Segment[];
   phrases: PhraseItem[];
+  rounds: RoundSpec[];
+  /** Index in `rounds`. */
   round: number;
+  /** Index in `phrases` of the board being played. */
+  board: number;
   starter: number;
   current: number;
   phase: Phase;
   called: string[];
   wheelAngle: number;
   landed: number | null;
-  /** Value of the segment the current player is playing for. */
+  /** Value per letter for the consonant being called. */
   pending: number;
+  pendingToken: Token | 'express' | null;
+  /** The current player is playing Express alone. */
+  express: boolean;
+  jackpotPot: number;
+  /** Ultimo Round: who booked, and who already failed on this board. */
+  booked: number | null;
+  excluded: number[];
   message: string;
-  /** Incremented at every change worth a sound/animation. */
   event: { id: number; type: GameEvent; count?: number; letter?: string };
-  /** Winner index of the last round. */
   roundWinner: number | null;
 }
 
@@ -41,7 +60,10 @@ export type Action =
   | { type: 'BUY_VOWEL'; letter: string }
   | { type: 'SOLVE'; text: string }
   | { type: 'TIMEOUT' }
-  | { type: 'NEXT_ROUND' }
+  | { type: 'NEXT_ROUND'; round?: { type: RoundType; phrases: PhraseItem[] } }
+  | { type: 'EXPRESS'; go: boolean }
+  | { type: 'REVEAL'; letter: string }
+  | { type: 'BOOK'; player: number }
   // Host/conductor interventions
   | { type: 'FORCE_SOLVE' }
   | { type: 'FORCE_PASS' }
@@ -55,16 +77,19 @@ export function newGame(
   names: string[],
   phrases: PhraseItem[],
   config: Config = DEFAULT_CONFIG,
-  wheel: Segment[] = DEFAULT_WHEEL,
+  rounds?: RoundSpec[],
 ): GameState {
   if (names.length < 2 || names.length > 6) throw new Error('2-6 players required');
   if (phrases.length < 1) throw new Error('at least one phrase required');
-  return {
+  const specs = rounds ?? phrases.map((_, i): RoundSpec => ({ type: 'classica', first: i, count: 1 }));
+  const s: GameState = {
     config,
-    players: names.map((name, i) => ({ name, color: PLAYER_COLORS[i], round: 0, total: 0 })),
-    wheel,
+    players: names.map((name, i) => ({ name, color: PLAYER_COLORS[i], round: 0, total: 0, jolly: false, premio: false, jackpot: false })),
+    wheel: wheelFor(specs[0].type),
     phrases,
+    rounds: specs,
     round: 0,
+    board: specs[0].first,
     starter: 0,
     current: 0,
     phase: 'turn',
@@ -72,15 +97,24 @@ export function newGame(
     wheelAngle: 0,
     landed: null,
     pending: 0,
+    pendingToken: null,
+    express: false,
+    jackpotPot: 0,
+    booked: null,
+    excluded: [],
     message: '',
     event: { id: 1, type: 'start' },
     roundWinner: null,
   };
+  return { ...s, phase: startPhase(s) };
 }
 
-export const currentPhrase = (s: GameState): PhraseItem => s.phrases[s.round];
+export const currentPhrase = (s: GameState): PhraseItem => s.phrases[s.board];
+export const roundType = (s: GameState): RoundType => s.rounds[s.round].type;
+export const boardNo = (s: GameState): number => s.board - s.rounds[s.round].first;
+const startPhase = (s: GameState): Phase => (roundType(s) === 'ultimo' ? 'ultimo' : 'turn');
+const jollyActive = (s: GameState, p: Player) => p.jolly && s.round < JOLLY_ROUNDS;
 
-/** Rounded-down check used by the UI to enable the "buy vowel" button. */
 export function canBuyVowel(s: GameState): boolean {
   return (
     s.phase === 'turn' &&
@@ -93,33 +127,32 @@ function emit(s: GameState, type: GameEvent, extra: { count?: number; letter?: s
   return { id: s.event.id + 1, type, ...extra };
 }
 
+const nextPlayer = (s: GameState, from = s.current) => (from + 1) % s.players.length;
+
 function passTurn(s: GameState, message: string, type: GameEvent): GameState {
-  const current = (s.current + 1) % s.players.length;
-  return { ...s, current, phase: 'turn', landed: null, pending: 0, message, event: emit(s, type) };
+  return {
+    ...s, current: nextPlayer(s), phase: 'turn', landed: null, pending: 0, pendingToken: null, express: false,
+    message, event: emit(s, type),
+  };
 }
 
-function withPlayer(s: GameState, patch: Partial<Player>): Player[] {
+function patchCurrent(s: GameState, patch: Partial<Player>): Player[] {
   return s.players.map((p, i) => (i === s.current ? { ...p, ...patch } : p));
 }
 
-function winRound(s: GameState, message: string): GameState {
-  const winner = s.players[s.current];
-  const players = s.players.map((p, i) => ({
-    ...p,
-    total: i === s.current ? p.total + winner.round : p.total,
-    round: 0,
-  }));
-  const last = s.round >= s.phrases.length - 1;
-  return {
-    ...s,
-    players,
-    phase: last ? 'gameEnd' : 'roundEnd',
-    roundWinner: s.current,
-    landed: null,
-    pending: 0,
-    message,
-    event: emit(s, last ? 'gameEnd' : 'roundEnd'),
-  };
+/** A mistake (missing letter, wrong solution): Express loses everything, a Jolly absorbs it. */
+function mistake(s: GameState, message: string, type: GameEvent): GameState {
+  const me = s.players[s.current];
+  if (s.express) {
+    return passTurn({ ...s, players: patchCurrent(s, { round: 0 }) }, `${message} – Express perso!`, type);
+  }
+  if (jollyActive(s, me)) {
+    return {
+      ...s, players: patchCurrent(s, { jolly: false }), phase: 'turn', landed: null, pending: 0, pendingToken: null,
+      message: `${me.name} usa il Jolly!`, event: emit(s, 'jolly'),
+    };
+  }
+  return passTurn(s, message, type);
 }
 
 function allLetters(text: string): string[] {
@@ -128,84 +161,158 @@ function allLetters(text: string): string[] {
   return [...all];
 }
 
+/** Move on after a board is done: next board of the round, or end of round / game. */
+function finishBoard(s: GameState, winner: number | null, message: string): GameState {
+  const spec = s.rounds[s.round];
+  if (s.board + 1 < spec.first + spec.count) {
+    const first = spec.type === 'ultimo';
+    return {
+      ...s, board: s.board + 1, called: [], phase: first ? 'ultimo' : 'turn', landed: null, pending: 0,
+      pendingToken: null, express: false, booked: null, excluded: [],
+      current: winner !== null && !first ? nextPlayer(s, winner) : s.current,
+      message, event: emit(s, 'solved'),
+    };
+  }
+  const last = s.round >= s.rounds.length - 1;
+  return {
+    ...s,
+    players: s.players.map((p) => ({ ...p, round: 0, premio: false, jackpot: false })),
+    phase: last ? 'gameEnd' : 'roundEnd',
+    roundWinner: winner, landed: null, pending: 0, pendingToken: null, express: false, booked: null,
+    message, event: emit(s, last ? 'gameEnd' : 'roundEnd'),
+  };
+}
+
+function winBoard(s: GameState, message: string): GameState {
+  const me = s.players[s.current];
+  let gain = me.round;
+  if (me.premio) gain += PREMIO_BONUS;
+  if (me.jackpot) gain += s.jackpotPot;
+  const players = s.players.map((p, i) => (i === s.current ? { ...p, total: p.total + gain, round: 0 } : p));
+  return finishBoard({ ...s, players, jackpotPot: me.jackpot ? 0 : s.jackpotPot }, s.current, message);
+}
+
+function checkAnswer(s: GameState, text: string): boolean {
+  const ph = currentPhrase(s);
+  return ph.words ? checkWords(text, ph.words, s.config.typoTolerance) : checkSolution(text, ph.text, s.config.typoTolerance);
+}
+
+function grantToken(s: GameState, token: Token): Player[] {
+  return s.players.map((p, i) => {
+    if (token === 'jackpot') return { ...p, jackpot: i === s.current };
+    return i === s.current ? { ...p, [token]: true } : p;
+  });
+}
+
 export function reduce(s: GameState, a: Action): GameState {
   const phrase = currentPhrase(s);
   const called = new Set(s.called);
   const me = s.players[s.current];
+  const rtype = roundType(s);
 
   switch (a.type) {
     case 'SPIN': {
-      if (s.phase !== 'turn') return s;
-      const landed = segmentAt(a.angle);
-      return { ...s, phase: 'spinning', wheelAngle: a.angle, landed, message: '', event: emit(s, 'spin') };
+      if (s.phase !== 'turn' || s.express || rtype === 'ultimo') return s;
+      return { ...s, phase: 'spinning', wheelAngle: a.angle, landed: segmentAt(a.angle), message: '', event: emit(s, 'spin') };
     }
     case 'SPIN_DONE': {
       if (s.phase !== 'spinning' || s.landed === null) return s;
       const seg = s.wheel[s.landed];
-      if (seg.kind === 'pass') return passTurn(s, `${me.name}: Passa!`, 'pass');
-      if (seg.kind === 'bankrupt') {
-        const players = withPlayer(s, { round: 0, total: s.config.bankruptAll ? 0 : me.total });
+      if (seg.kind === 'pass' || seg.kind === 'bankrupt') {
+        if (jollyActive(s, me)) {
+          return { ...s, players: patchCurrent(s, { jolly: false }), phase: 'turn', landed: null, message: `${me.name} usa il Jolly!`, event: emit(s, 'jolly') };
+        }
+        if (seg.kind === 'pass') return passTurn(s, `${me.name}: Passa!`, 'pass');
+        const players = patchCurrent(s, { round: 0, total: s.config.bankruptAll ? 0 : me.total, premio: false, jackpot: false });
         return passTurn({ ...s, players }, `${me.name}: Bancarotta!`, 'bankrupt');
       }
+      const value = seg.kind === 'express' ? EXPRESS_SEGMENT_VALUE : seg.value;
+      const token = seg.kind === 'express' ? 'express' : seg.token ?? null;
       return {
-        ...s,
-        phase: 'consonant',
-        pending: seg.value,
-        message: `${me.name}: scegli una consonante (${seg.value})`,
-        event: emit(s, 'value'),
+        ...s, phase: 'consonant', pending: value, pendingToken: token,
+        message: `${me.name}: scegli una consonante (${value})`, event: emit(s, 'value'),
       };
     }
     case 'CALL': {
-      if (s.phase !== 'consonant') return s;
+      if (!(s.phase === 'consonant' || (s.phase === 'turn' && s.express))) return s;
       const L = baseLetter(a.letter);
       if (!/^[A-Z]$/.test(L) || isVowel(L) || called.has(L)) return s;
       called.add(L);
-      const n = countLetter(phrase.text, L);
+      const n = occurrences(phrase, L);
       const base = { ...s, called: [...called] };
-      if (n === 0) return passTurn(base, `Nessuna ${L}`, 'miss');
-      const players = withPlayer(base, { round: me.round + n * s.pending });
+      if (n === 0) return mistake(base, `Nessuna ${L}`, 'miss');
+      const gain = n * s.pending;
+      let players = patchCurrent(base, { round: me.round + gain });
+      let event = emit(s, 'hit', { count: n, letter: L });
+      let phase: Phase = 'turn';
+      const tok = s.pendingToken;
+      if (tok === 'jolly' || tok === 'premio' || tok === 'jackpot') {
+        players = grantToken({ ...base, players }, tok);
+      } else if (tok === 'express' && !s.express) {
+        phase = 'expressOffer';
+      }
       const next: GameState = {
-        ...base,
-        players,
-        phase: 'turn',
-        landed: null,
-        pending: 0,
-        message: `${n} × ${L}: +${n * s.pending}`,
-        event: emit(s, 'hit', { count: n, letter: L }),
+        ...base, players, phase, landed: null,
+        pending: s.express ? s.pending : 0, pendingToken: null,
+        jackpotPot: rtype === 'jackpot' ? s.jackpotPot + gain : s.jackpotPot,
+        message: `${n} × ${L}: +${gain}` + (tok === 'jolly' || tok === 'premio' || tok === 'jackpot' ? ` — conquisti ${tok.toUpperCase()}!` : ''),
+        event,
       };
-      return isFullyRevealed(phrase.text, called) ? winRound(next, `${me.name} completa la frase!`) : next;
+      return isFullyRevealed(phrase.text, called) ? winBoard(next, `${me.name} completa il tabellone!`) : next;
+    }
+    case 'EXPRESS': {
+      if (s.phase !== 'expressOffer') return s;
+      if (!a.go) return { ...s, phase: 'turn', message: `${me.name} si ferma`, event: emit(s, 'value') };
+      return { ...s, phase: 'turn', express: true, pending: EXPRESS_VALUE, message: `${me.name} va in EXPRESS!`, event: emit(s, 'express') };
     }
     case 'BUY_VOWEL': {
       if (!canBuyVowel(s)) return s;
       const L = baseLetter(a.letter);
       if (!isVowel(L) || called.has(L)) return s;
       called.add(L);
-      const n = countLetter(phrase.text, L);
-      const base = { ...s, called: [...called], players: withPlayer(s, { round: me.round - s.config.vowelCost }) };
-      if (n === 0) return passTurn(base, `Nessuna ${L}`, 'miss');
-      const next: GameState = {
-        ...base,
-        message: `${n} × ${L}`,
-        event: emit(s, 'vowel', { count: n, letter: L }),
-      };
-      return isFullyRevealed(phrase.text, called) ? winRound(next, `${me.name} completa la frase!`) : next;
+      const n = occurrences(phrase, L);
+      const base = { ...s, called: [...called], players: patchCurrent(s, { round: me.round - s.config.vowelCost }) };
+      if (n === 0) return mistake(base, `Nessuna ${L}`, 'miss');
+      const next: GameState = { ...base, message: `${n} × ${L}`, event: emit(s, 'vowel', { count: n, letter: L }) };
+      return isFullyRevealed(phrase.text, called) ? winBoard(next, `${me.name} completa il tabellone!`) : next;
     }
     case 'SOLVE': {
-      if (s.phase !== 'turn') return s;
-      if (checkSolution(a.text, phrase.text, s.config.typoTolerance)) {
-        return winRound({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
+      if (s.phase === 'booked' && s.booked !== null) {
+        if (checkAnswer(s, a.text)) {
+          const players = s.players.map((p, i) => (i === s.booked ? { ...p, total: p.total + ULTIMO_VALUE } : p));
+          return finishBoard({ ...s, players, current: s.booked, called: allLetters(phrase.text) }, s.booked, `${s.players[s.booked].name} risolve! +${ULTIMO_VALUE}`);
+        }
+        return ultimoFail(s);
       }
-      return passTurn(s, 'Soluzione sbagliata', 'wrong');
+      if (s.phase !== 'turn') return s;
+      if (checkAnswer(s, a.text)) return winBoard({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
+      return mistake(s, 'Soluzione sbagliata', 'wrong');
     }
     case 'TIMEOUT': {
+      if (s.phase === 'booked') return ultimoFail(s);
+      if (s.phase === 'expressOffer') return reduce(s, { type: 'EXPRESS', go: false });
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
-      return passTurn(s, 'Tempo scaduto', 'miss');
+      return mistake({ ...s, players: s.players }, 'Tempo scaduto', 'miss');
+    }
+    case 'REVEAL': {
+      if (s.phase !== 'ultimo') return s;
+      const L = baseLetter(a.letter);
+      if (!isLetter(L) || called.has(L) || !allLetters(phrase.text).includes(L)) return s;
+      called.add(L);
+      const next: GameState = { ...s, called: [...called], message: '', event: emit(s, 'reveal', { letter: L }) };
+      return isFullyRevealed(phrase.text, called) ? finishBoard(next, null, 'Nessuno risolve!') : next;
+    }
+    case 'BOOK': {
+      if (s.phase !== 'ultimo' || s.excluded.includes(a.player) || !s.players[a.player]) return s;
+      return { ...s, phase: 'booked', booked: a.player, current: a.player, message: `${s.players[a.player].name} si prenota!`, event: emit(s, 'book') };
     }
     case 'FORCE_SOLVE': {
+      if (s.phase === 'booked' && s.booked !== null) return reduce(s, { type: 'SOLVE', text: phrase.words ? phrase.words.join(' ') : phrase.text });
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
-      return winRound({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
+      return winBoard({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
     }
     case 'FORCE_PASS': {
+      if (s.phase === 'booked') return ultimoFail(s);
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
       return passTurn(s, 'Turno passato dal conduttore', 'pass');
     }
@@ -216,26 +323,37 @@ export function reduce(s: GameState, a: Action): GameState {
       return { ...s, players, message: `${p.name}: ${a.delta >= 0 ? '+' : ''}${a.delta}` };
     }
     case 'SKIP': {
-      if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
-      const phrases = s.phrases.map((x, i) => (i === s.round ? a.phrase : x));
-      return { ...s, phrases, called: [], phase: 'turn', landed: null, pending: 0, message: 'Nuova frase', event: emit(s, 'start') };
+      if (!['turn', 'consonant', 'ultimo'].includes(s.phase)) return s;
+      const phrases = s.phrases.map((x, i) => (i === s.board ? a.phrase : x));
+      return { ...s, phrases, called: [], phase: startPhase(s), landed: null, pending: 0, pendingToken: null, express: false, excluded: [], message: 'Nuova frase', event: emit(s, 'start') };
     }
     case 'NEXT_ROUND': {
       if (s.phase !== 'roundEnd') return s;
-      const starter = (s.starter + 1) % s.players.length;
-      return {
-        ...s,
-        round: s.round + 1,
-        starter,
-        current: starter,
-        phase: 'turn',
-        called: [],
-        message: '',
-        roundWinner: null,
-        event: emit(s, 'start'),
+      let phrases = s.phrases;
+      let rounds = s.rounds;
+      const round = s.round + 1;
+      if (a.round) {
+        const first = phrases.length;
+        phrases = [...phrases, ...a.round.phrases];
+        rounds = rounds.map((r, i) => (i === round ? { type: a.round!.type, first, count: a.round!.phrases.length } : r));
+      }
+      const starter = nextPlayer(s, s.starter);
+      const ns: GameState = {
+        ...s, phrases, rounds, round, board: rounds[round].first, starter, current: starter, called: [], wheel: wheelFor(rounds[round].type),
+        message: '', roundWinner: null, jackpotPot: 0, booked: null, excluded: [], express: false, event: emit(s, 'start'),
       };
+      return { ...ns, phase: startPhase(ns) };
     }
   }
+}
+
+/** Ultimo Round: wrong or late answer — the player is out for this board. */
+function ultimoFail(s: GameState): GameState {
+  if (s.booked === null) return s;
+  const excluded = [...s.excluded, s.booked];
+  const name = s.players[s.booked].name;
+  if (excluded.length >= s.players.length) return finishBoard({ ...s, excluded }, null, 'Nessuno risolve!');
+  return { ...s, excluded, booked: null, phase: 'ultimo', message: `${name} sbaglia!`, event: emit(s, 'wrong') };
 }
 
 /** Players sorted by total, descending (stable). */

@@ -121,7 +121,7 @@ describe('game', () => {
     let s = start();
     s = reduce(s, { type: 'NEXT_ROUND' }); // ignored outside roundEnd
     expect(s.round).toBe(0);
-    s = { ...s, round: 1, players: s.players.map((p, i) => (i === 2 ? { ...p, total: 50 } : p)) };
+    s = { ...s, round: 1, board: 1, players: s.players.map((p, i) => (i === 2 ? { ...p, total: 50 } : p)) };
     s = reduce(s, { type: 'SOLVE', text: 'pizza' });
     expect(s.phase).toBe('gameEnd');
     expect(ranking(s)[0].name).toBe('C');

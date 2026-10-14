@@ -1,14 +1,17 @@
 // Messages between the screen (host) and the phones, plus the filtered view sent to phones.
 
+import { maskRows } from '../core/board';
 import type { GameState, Phase } from '../core/game';
-import { canBuyVowel, currentPhrase } from '../core/game';
-import { baseLetter, isLetter, layoutBoard } from '../core/phrase';
+import { canBuyVowel, currentPhrase, roundType } from '../core/game';
+import type { RoundType } from '../core/rounds';
 
 export type Intent =
   | { k: 'spin'; power: number }
   | { k: 'call'; l: string }
   | { k: 'vowel'; l: string }
-  | { k: 'solve'; text: string };
+  | { k: 'solve'; text: string }
+  | { k: 'express'; go: boolean }
+  | { k: 'book' };
 
 export type ConductorIntent =
   | { k: 'accept' }
@@ -16,7 +19,7 @@ export type ConductorIntent =
   | { k: 'pass' }
   | { k: 'adjust'; player: number; delta: number }
   | { k: 'skip' }
-  | { k: 'next' }
+  | { k: 'next'; type?: RoundType }
   | { k: 'addPhrase'; text: string; tema: string };
 
 export type ToHost =
@@ -30,7 +33,7 @@ export interface PlayerView {
   you: number;
   phase: Phase | 'lobby';
   current: number;
-  players: { name: string; color: string; round: number; total: number; connected: boolean }[];
+  players: { name: string; color: string; round: number; total: number; connected: boolean; jolly: boolean; premio: boolean; jackpot: boolean }[];
   /** Board rows with hidden letters replaced by '_' — never contains the solution. */
   rows: string[];
   tema: string;
@@ -44,6 +47,14 @@ export interface PlayerView {
   /** ms epoch when the current answer time runs out, or 0. */
   deadline: number;
   eventId: number;
+  roundType: RoundType;
+  express: boolean;
+  jackpotPot: number;
+  booked: number | null;
+  excluded: number[];
+  /** Board number inside the round (Triplete / Ultimo Round) and how many there are. */
+  boardNo: number;
+  boards: number;
 }
 
 /** What the conductor sees: the player view plus the solution and any pending review. */
@@ -62,12 +73,6 @@ export type ToClient =
   | { t: 'view'; v: PlayerView }
   | { t: 'rejected'; reason: string };
 
-/** Mask the board: hidden letters become '_' (blank cells stay spaces). */
-export function maskedRows(text: string, called: Set<string>): string[] {
-  const rows = layoutBoard(text) ?? [];
-  return rows.map((r) => [...r].map((ch) => (isLetter(ch) && !called.has(baseLetter(ch)) ? '_' : ch)).join(''));
-}
-
 export function buildView(s: GameState, you: number, connected: boolean[], deadline = 0): PlayerView {
   const ph = currentPhrase(s);
   return {
@@ -75,10 +80,10 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     phase: s.phase,
     current: s.current,
     players: s.players.map((p, i) => ({ ...p, connected: connected[i] ?? true })),
-    rows: maskedRows(ph.text, new Set(s.called)),
+    rows: maskRows(ph, new Set(s.called)),
     tema: ph.tema,
     round: s.round,
-    rounds: s.phrases.length,
+    rounds: s.rounds.length,
     called: s.called,
     pending: s.pending,
     message: s.message,
@@ -86,6 +91,13 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     vowelCost: s.config.vowelCost,
     deadline,
     eventId: s.event.id,
+    roundType: roundType(s),
+    express: s.express,
+    jackpotPot: s.jackpotPot,
+    booked: s.booked,
+    excluded: s.excluded,
+    boardNo: s.board - s.rounds[s.round].first,
+    boards: s.rounds[s.round].count,
   };
 }
 

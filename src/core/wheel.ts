@@ -1,7 +1,10 @@
 // Wheel definition (24 segments) and geometry.
 
+export type Token = 'jolly' | 'premio' | 'jackpot';
+
 export type Segment =
-  | { kind: 'value'; value: number }
+  | { kind: 'value'; value: number; token?: Token }
+  | { kind: 'express' }
   | { kind: 'pass' }
   | { kind: 'bankrupt' };
 
@@ -31,5 +34,6 @@ export function spinAngle(current: number, power: number, rnd: number): number {
 }
 
 export function segmentLabel(s: Segment): string {
-  return s.kind === 'value' ? String(s.value) : s.kind === 'pass' ? 'PASSA' : 'BANCAROTTA';
+  if (s.kind === 'value') return s.token ? s.token.toUpperCase() : String(s.value);
+  return s.kind === 'pass' ? 'PASSA' : s.kind === 'express' ? 'EXPRESS' : 'BANCAROTTA';
 }
