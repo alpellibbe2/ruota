@@ -2,7 +2,7 @@
 
 ## Stato
 - **Fase 1 – COMPLETATA**, **Fase 2 – COMPLETATA** (https://alpellibbe2.github.io/ruota/, verificato anche con PeerJS cloud: `PUBLIC=1 npx playwright test e2e/pubblico.spec.ts`).
-- **Fase 3 – Conduttore umano + editor frasi**: codice e test e2e verdi. Resta deploy/verifica HTTP 200.
+- **Fase 3 – Conduttore umano + editor frasi**: codice e test e2e verdi. Deploy ok (HTTP 200). **Fase 3 COMPLETATA.**
 - Prossimo passo: Fase 4 (manche speciali: Express, Jolly, Premio, Cruciruota, Triplete, Jackpot, Ultimo Round). Richiede di generalizzare `GameState` con un tipo di manche (`RoundType`) e un catalogo/preset (Completa/Veloce).
 
 ## Struttura
