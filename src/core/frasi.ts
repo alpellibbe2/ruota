@@ -96,6 +96,7 @@ export function pickPhrases(n: number, bank: BankPhrase[] = loadBank(), rnd: () 
 import triplete from '../data/frasi/triplete.json';
 import cruci from '../data/frasi/cruci.json';
 import { layoutCrossword } from './crossword';
+import { ENVELOPE_VALUES, FinaleSetup } from './finale';
 import { ROUND_NAMES, PRESET_ROUNDS, Preset, RoundSpec, RoundType, boardsIn } from './rounds';
 
 interface RawSet { id: string; tema: string; t: string[] }
@@ -156,3 +157,14 @@ export function buildGame(types: RoundType[], source: Source = 'banca', rnd: () 
 }
 
 export { ROUND_NAMES };
+
+/** Phrases and shuffled prize values for the final game. */
+export function buildFinale(rnd: () => number = Math.random): FinaleSetup {
+  const phrases = pickPhrases(3, undefined, rnd).map((b): PhraseItem => ({ text: b.text, tema: b.tema }));
+  const values = [...ENVELOPE_VALUES];
+  for (let i = values.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [values[i], values[j]] = [values[j], values[i]];
+  }
+  return { phrases, values };
+}

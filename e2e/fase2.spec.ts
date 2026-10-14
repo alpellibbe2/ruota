@@ -21,6 +21,7 @@ test('uno schermo e tre telefoni: lobby, giri, risoluzione, riconnessione, timeo
   await host.evaluate(() => localStorage.clear());
   await host.reload();
   await host.getByTestId('preset-libera').click();
+  await host.getByTestId('finale-toggle').uncheck();
   await host.getByTestId('rounds-1').click();
   await host.getByTestId('phones').click();
   await expect(host.locator('.lobby[data-code]')).toBeVisible({ timeout: 20000 });

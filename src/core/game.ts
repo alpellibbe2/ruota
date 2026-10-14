@@ -6,6 +6,7 @@ import {
   EXPRESS_SEGMENT_VALUE, EXPRESS_VALUE, JOLLY_ROUNDS, PREMIO_BONUS, ULTIMO_VALUE,
   PhraseItem, RoundSpec, RoundType, wheelFor,
 } from './rounds';
+import { FinaleAction, FinaleSetup, FinaleState, envelopeWheel, finaleReduce, finalePhrase, newFinale } from './finale';
 import { Segment, segmentAt, Token } from './wheel';
 
 export type { PhraseItem } from './rounds';
@@ -14,10 +15,10 @@ export interface Player {
   name: string; color: string; round: number; total: number;
   jolly: boolean; premio: boolean; jackpot: boolean;
 }
-export interface Config { vowelCost: number; bankruptAll: boolean; typoTolerance: boolean }
+export interface Config { vowelCost: number; bankruptAll: boolean; typoTolerance: boolean; finale?: boolean; kids?: boolean }
 
 export type Phase =
-  | 'turn' | 'spinning' | 'consonant' | 'expressOffer' | 'ultimo' | 'booked' | 'roundEnd' | 'gameEnd';
+  | 'turn' | 'spinning' | 'consonant' | 'expressOffer' | 'ultimo' | 'booked' | 'roundEnd' | 'finale' | 'gameEnd';
 
 export type GameEvent =
   | 'start' | 'spin' | 'value' | 'pass' | 'bankrupt' | 'hit' | 'miss'
@@ -51,6 +52,12 @@ export interface GameState {
   message: string;
   event: { id: number; type: GameEvent; count?: number; letter?: string };
   roundWinner: number | null;
+  /** The final game, set up at the start and played after the last round. */
+  finaleSetup?: FinaleSetup;
+  finale?: FinaleState;
+  /** The last round is over: the next step is the final game (or a tie-break). */
+  toFinale?: boolean;
+  tieBreakDone?: boolean;
 }
 
 export type Action =
@@ -68,7 +75,9 @@ export type Action =
   | { type: 'FORCE_SOLVE' }
   | { type: 'FORCE_PASS' }
   | { type: 'ADJUST'; player: number; delta: number }
-  | { type: 'SKIP'; phrase: PhraseItem };
+  | { type: 'SKIP'; phrase: PhraseItem }
+  | FinaleAction
+  | { type: 'F_END' };
 
 export const DEFAULT_CONFIG: Config = { vowelCost: 500, bankruptAll: true, typoTolerance: true };
 export const PLAYER_COLORS = ['#e53935', '#1e88e5', '#fdd835', '#43a047', '#8e24aa', '#fb8c00'];
@@ -78,6 +87,7 @@ export function newGame(
   phrases: PhraseItem[],
   config: Config = DEFAULT_CONFIG,
   rounds?: RoundSpec[],
+  finaleSetup?: FinaleSetup,
 ): GameState {
   if (names.length < 2 || names.length > 6) throw new Error('2-6 players required');
   if (phrases.length < 1) throw new Error('at least one phrase required');
@@ -105,15 +115,19 @@ export function newGame(
     message: '',
     event: { id: 1, type: 'start' },
     roundWinner: null,
+    finaleSetup,
   };
   return { ...s, phase: startPhase(s) };
 }
 
-export const currentPhrase = (s: GameState): PhraseItem => s.phrases[s.board];
+export const currentPhrase = (s: GameState): PhraseItem => (s.finale ? finalePhrase(s.finale) : s.phrases[s.board]);
+export const finaleOn = (s: GameState): boolean => !!s.finaleSetup && s.config.finale !== false;
 export const roundType = (s: GameState): RoundType => s.rounds[s.round].type;
 export const boardNo = (s: GameState): number => s.board - s.rounds[s.round].first;
 const startPhase = (s: GameState): Phase => (roundType(s) === 'ultimo' ? 'ultimo' : 'turn');
 const jollyActive = (s: GameState, p: Player) => p.jolly && s.round < JOLLY_ROUNDS;
+
+
 
 export function canBuyVowel(s: GameState): boolean {
   return (
@@ -155,6 +169,23 @@ function mistake(s: GameState, message: string, type: GameEvent): GameState {
   return passTurn(s, message, type);
 }
 
+function finaleEvent(s: GameState, f: FinaleState, a: FinaleAction): GameState['event'] {
+  switch (a.type) {
+    case 'F_SPIN': return emit(s, 'spin');
+    case 'F_SPIN_DONE': return emit(s, 'value');
+    case 'F_START': return emit(s, 'start');
+    case 'F_CALL': {
+      const L = baseLetter(a.letter);
+      const n = finalePhrase(f).text.split('').filter((c) => baseLetter(c) === L).length;
+      return n ? emit(s, 'hit', { count: n, letter: L }) : emit(s, 'miss');
+    }
+    case 'F_SOLVE': case 'F_FORCE_SOLVE':
+      return f.won.filter(Boolean).length > (s.finale?.won.filter(Boolean).length ?? 0) ? emit(s, 'roundEnd') : emit(s, 'wrong');
+    case 'F_CHOOSE': return emit(s, 'gameEnd');
+    default: return s.event;
+  }
+}
+
 function allLetters(text: string): string[] {
   const all = new Set<string>();
   for (const ch of text) if (isLetter(ch)) all.add(baseLetter(ch));
@@ -174,12 +205,14 @@ function finishBoard(s: GameState, winner: number | null, message: string): Game
     };
   }
   const last = s.round >= s.rounds.length - 1;
+  const toFinale = last && finaleOn(s);
   return {
     ...s,
     players: s.players.map((p) => ({ ...p, round: 0, premio: false, jackpot: false })),
-    phase: last ? 'gameEnd' : 'roundEnd',
+    phase: last && !toFinale ? 'gameEnd' : 'roundEnd',
+    toFinale,
     roundWinner: winner, landed: null, pending: 0, pendingToken: null, express: false, booked: null,
-    message, event: emit(s, last ? 'gameEnd' : 'roundEnd'),
+    message, event: emit(s, last && !toFinale ? 'gameEnd' : 'roundEnd'),
   };
 }
 
@@ -306,7 +339,19 @@ export function reduce(s: GameState, a: Action): GameState {
       if (s.phase !== 'ultimo' || s.excluded.includes(a.player) || !s.players[a.player]) return s;
       return { ...s, phase: 'booked', booked: a.player, current: a.player, message: `${s.players[a.player].name} si prenota!`, event: emit(s, 'book') };
     }
+    case 'F_SPIN': case 'F_SPIN_DONE': case 'F_START': case 'F_CALL': case 'F_SOLVE': case 'F_FORCE_SOLVE': case 'F_TICK': case 'F_CHOOSE': {
+      if (s.phase !== 'finale' || !s.finale) return s;
+      const f = finaleReduce(s.finale, a);
+      if (f === s.finale) return s;
+      return { ...s, finale: f, message: f.message, event: finaleEvent(s, f, a) };
+    }
+    case 'F_END': {
+      if (s.phase !== 'finale' || !s.finale || s.finale.stage !== 'reveal') return s;
+      const players = s.players.map((p, i) => (i === s.finale!.champion ? { ...p, total: p.total + s.finale!.prize } : p));
+      return { ...s, players, phase: 'gameEnd', event: emit(s, 'gameEnd') };
+    }
     case 'FORCE_SOLVE': {
+      if (s.phase === 'finale' && s.finale) return reduce(s, { type: 'F_SOLVE', text: finalePhrase(s.finale).text });
       if (s.phase === 'booked' && s.booked !== null) return reduce(s, { type: 'SOLVE', text: phrase.words ? phrase.words.join(' ') : phrase.text });
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
       return winBoard({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);
@@ -329,6 +374,7 @@ export function reduce(s: GameState, a: Action): GameState {
     }
     case 'NEXT_ROUND': {
       if (s.phase !== 'roundEnd') return s;
+      if (s.toFinale) return enterFinale(s, a.round?.phrases[0]);
       let phrases = s.phrases;
       let rounds = s.rounds;
       const round = s.round + 1;
@@ -345,6 +391,33 @@ export function reduce(s: GameState, a: Action): GameState {
       return { ...ns, phase: startPhase(ns) };
     }
   }
+}
+
+/** Indexes of the players with the highest total. */
+export function leaders(s: GameState): number[] {
+  const top = Math.max(...s.players.map((p) => p.total));
+  return s.players.map((p, i) => (p.total === top ? i : -1)).filter((i) => i >= 0);
+}
+
+/** After the last round: a tie at the top is settled with a lightning phrase, then the final game starts. */
+function enterFinale(s: GameState, tiePhrase?: PhraseItem): GameState {
+  const tied = leaders(s);
+  if (tied.length > 1 && !s.tieBreakDone && tiePhrase) {
+    const first = s.phrases.length;
+    const rounds = [...s.rounds, { type: 'ultimo' as RoundType, first, count: 1 }];
+    return {
+      ...s, phrases: [...s.phrases, tiePhrase], rounds, round: rounds.length - 1, board: first, called: [], toFinale: false,
+      tieBreakDone: true, phase: 'ultimo', booked: null, wheel: wheelFor('ultimo'), roundWinner: null,
+      excluded: s.players.map((_, i) => i).filter((i) => !tied.includes(i)),
+      message: 'Spareggio! Frase lampo tra i primi', event: emit(s, 'start'),
+    };
+  }
+  const champion = tied[0];
+  return {
+    ...s, phase: 'finale', toFinale: false, finale: newFinale(champion, s.finaleSetup!, s.config.kids), current: champion,
+    wheel: envelopeWheel(), called: [], booked: null, excluded: [], roundWinner: champion,
+    message: `${s.players[champion].name} è il campione!`, event: emit(s, 'start'),
+  };
 }
 
 /** Ultimo Round: wrong or late answer — the player is out for this board. */

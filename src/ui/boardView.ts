@@ -47,11 +47,11 @@ export class BoardView {
   }
 
   /** Reveal tiles whose base letter is in `called`; returns the tiles newly revealed. */
-  update(called: Set<string>): number {
+  update(called: Set<string>, forced: Set<number> = new Set()): number {
     let fresh = 0;
-    for (const t of this.tiles) {
+    for (const [i, t] of this.tiles.entries()) {
       if (!t.letter) continue;
-      if (called.has(baseLetter(t.ch)) && t.el.classList.contains('covered')) {
+      if ((called.has(baseLetter(t.ch)) || forced.has(i)) && t.el.classList.contains('covered')) {
         t.el.classList.replace('covered', 'revealed');
         t.el.textContent = t.ch;
         fresh++;

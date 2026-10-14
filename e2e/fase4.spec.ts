@@ -15,6 +15,7 @@ async function setup(page: Page, types: string[], names = 3) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByTestId('preset-libera').click();
+  await page.getByTestId('finale-toggle').uncheck();
   await page.getByTestId(`players-${names}`).click();
   await page.getByTestId(`rounds-${types.length}`).click();
   for (let i = 0; i < types.length; i++) await page.getByTestId(`round-type-${i}`).selectOption(types[i]);
@@ -149,6 +150,7 @@ test('telefoni: offerta Express e prenotazione nell’Ultimo Round', async ({ br
   await host.evaluate(() => localStorage.clear());
   await host.reload();
   await host.getByTestId('preset-libera').click();
+  await host.getByTestId('finale-toggle').uncheck();
   await host.getByTestId('rounds-2').click();
   await host.getByTestId('round-type-0').selectOption('express');
   await host.getByTestId('round-type-1').selectOption('ultimo');

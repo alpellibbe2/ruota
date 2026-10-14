@@ -24,3 +24,5 @@
 - Layout: tessere con dimensione fissa per tabellone (altezza massima 400 px) per far stare il cruciverba.
 - Conduttore può scegliere il tipo di manche successiva (select nella vista conduttore).
 - Wheel: 24 spicchi, jolly a indice 9, premio 17, express 1/8/19 (solo manche Express), jackpot 14 (solo Jackpot).
+- **Fase 5**: campione = totale più alto; pari → spareggio con una frase Ultimo Round (1000 punti) solo tra i pari; se resta pari vince il primo in elenco. Il premio della busta si somma al totale del campione prima della classifica.
+- Ruota delle buste: 24 spicchi numerati (i valori sono nascosti e rimescolati a ogni partita: 100…200.000, pochi valori alti); la ruota dà la prima busta, le altre due sono estratte a caso. Tabellone 1: RSTLNE già scoperte, 3 consonanti + 1 vocale; Testacoda: prima/ultima lettera visibili, 5 consonanti + 2 vocali (*); Rubasecondi: consonanti libere, 1 vocale, −3 s per lettera assente. Soluzione sbagliata: nessuna penalità. Un solo cronometro da 60 s per tutti e tre i tabelloni.

@@ -10,6 +10,7 @@ test('partita completa su un dispositivo', async ({ page }) => {
   await page.screenshot({ path: `${SHOTS}/setup.png` });
 
   await page.getByTestId('preset-libera').click();
+  await page.getByTestId('finale-toggle').uncheck();
   await page.getByTestId('players-4').click();
   await page.getByTestId('name-0').fill('Anna');
   await page.getByTestId('rounds-2').click();

@@ -3,6 +3,7 @@
 import { maskRows } from '../core/board';
 import type { GameState, Phase } from '../core/game';
 import { canBuyVowel, currentPhrase, roundType } from '../core/game';
+import { BoardKind } from '../core/finale';
 import type { RoundType } from '../core/rounds';
 
 export type Intent =
@@ -11,7 +12,9 @@ export type Intent =
   | { k: 'vowel'; l: string }
   | { k: 'solve'; text: string }
   | { k: 'express'; go: boolean }
-  | { k: 'book' };
+  | { k: 'book' }
+  | { k: 'fstart' }
+  | { k: 'fchoose'; i: number };
 
 export type ConductorIntent =
   | { k: 'accept' }
@@ -55,6 +58,23 @@ export interface PlayerView {
   /** Board number inside the round (Triplete / Ultimo Round) and how many there are. */
   boardNo: number;
   boards: number;
+  finale?: FinaleView;
+}
+
+export interface FinaleView {
+  stage: 'wheel' | 'spinning' | 'drawn' | 'board' | 'choose' | 'reveal';
+  champion: number;
+  kind: BoardKind;
+  timeLeft: number;
+  won: boolean[];
+  /** Envelope numbers (1-24) drawn for each board; empty until the wheel has stopped. */
+  envelopes: number[];
+  consonantsLeft: number;
+  vowelsLeft: number;
+  boardIdx: number;
+  boards: number;
+  prize: number;
+  chosen: number | null;
 }
 
 /** What the conductor sees: the player view plus the solution and any pending review. */
@@ -80,11 +100,11 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     phase: s.phase,
     current: s.current,
     players: s.players.map((p, i) => ({ ...p, connected: connected[i] ?? true })),
-    rows: maskRows(ph, new Set(s.called)),
+    rows: maskRows(ph, new Set(s.finale ? s.finale.called : s.called), new Set(s.finale?.forced ?? [])),
     tema: ph.tema,
     round: s.round,
     rounds: s.rounds.length,
-    called: s.called,
+    called: s.finale ? s.finale.called : s.called,
     pending: s.pending,
     message: s.message,
     canVowel: canBuyVowel(s),
@@ -98,6 +118,12 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     excluded: s.excluded,
     boardNo: s.board - s.rounds[s.round].first,
     boards: s.rounds[s.round].count,
+    finale: s.finale && {
+      stage: s.finale.stage, champion: s.finale.champion, kind: s.finale.kinds[s.finale.boardIdx], timeLeft: s.finale.timeLeft,
+      won: s.finale.won, envelopes: s.finale.stage === 'wheel' ? [] : s.finale.envelopes.map((e) => e + 1),
+      consonantsLeft: s.finale.consonantsLeft, vowelsLeft: s.finale.vowelsLeft, boardIdx: s.finale.boardIdx, boards: s.finale.kinds.length,
+      prize: s.finale.stage === 'reveal' ? s.finale.prize : 0, chosen: s.finale.chosen,
+    },
   };
 }
 

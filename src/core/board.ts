@@ -17,6 +17,11 @@ export function occurrences(p: PhraseItem, letter: string): number {
   return p.grid.cells.filter((c) => baseLetter(c.ch) === L).length;
 }
 
-export function maskRows(p: PhraseItem, called: Set<string>): string[] {
-  return boardRows(p).map((r) => [...r].map((ch) => (isLetter(ch) && !called.has(baseLetter(ch)) ? '_' : ch)).join(''));
+/** Rows with hidden letters as '_'. `forced` = flat tile indexes shown regardless (Testacoda). */
+export function maskRows(p: PhraseItem, called: Set<string>, forced: Set<number> = new Set()): string[] {
+  let idx = 0;
+  return boardRows(p).map((r) => [...r].map((ch) => {
+    const i = idx++;
+    return isLetter(ch) && !called.has(baseLetter(ch)) && !forced.has(i) ? '_' : ch;
+  }).join(''));
 }

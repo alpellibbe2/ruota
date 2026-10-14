@@ -1,11 +1,13 @@
 import './ui/style.css';
 import { Action, Config, DEFAULT_CONFIG, GameState, PLAYER_COLORS, boardNo, canBuyVowel, currentPhrase, newGame, ranking, reduce, roundType } from './core/game';
-import { addCustom, buildGame, buildRound, presetTypes, Source } from './core/frasi';
+import { finalePhrase } from './core/finale';
+import { addCustom, buildFinale, buildGame, buildRound, presetTypes, Source } from './core/frasi';
+import { BOARD_TITLES, finaleKind, ENVELOPE_COUNT } from './core/finale';
 import { ROUND_NAMES, ROUND_RULES, ROUND_TYPES, Preset, RoundType } from './core/rounds';
-import { baseLetter, checkSolution, checkWords, hiddenLetters } from './core/phrase';
+import { checkSolution, checkWords, hiddenLetters } from './core/phrase';
 import { showEditor } from './ui/editor';
 import { CONSONANTS, VOWELS } from './core/phrase';
-import { spinAngle } from './core/wheel';
+import { segmentAt, spinAngle } from './core/wheel';
 import { BoardView } from './ui/boardView';
 import { WheelView } from './ui/wheelView';
 import { isMuted, setMuted, sfx } from './ui/audio';
@@ -122,6 +124,11 @@ function showSetup() {
   edit.onclick = () => showEditor(stage, showSetup);
   srcRow.append(edit);
 
+  const finRow = h('label', 'row');
+  const fcb = h('input'); fcb.type = 'checkbox'; fcb.checked = st.config.finale !== false; fcb.dataset.testid = 'finale-toggle';
+  fcb.onchange = () => { st.config = { ...st.config, finale: fcb.checked }; };
+  finRow.append(fcb, h('span', '', 'Gioco finale: La Ruota delle Meraviglie'));
+
   const start = h('button', 'big', 'INIZIA (UN DISPOSITIVO)');
   start.dataset.testid = 'start';
   start.onclick = () => {
@@ -150,7 +157,7 @@ function showSetup() {
     };
     btns.append(resume);
   }
-  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, bankRow, btns);
+  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, bankRow, finRow, btns);
   stage.append(box);
 }
 
@@ -177,7 +184,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   else {
     const custom = Array.from({ length: st.rounds }, (_, i) => st.custom?.[i] ?? 'classica');
     const { phrases, rounds } = buildGame(presetTypes(st.preset ?? 'completa', custom), st.fonte ?? 'banca');
-    state = newGame(st.names, phrases, st.config, rounds);
+    state = newGame(st.names, phrases, st.config, rounds, st.config.finale === false ? undefined : buildFinale());
     if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
   }
   if (host) host.started = true;
@@ -187,6 +194,9 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   let note = '';
   let mode: 'menu' | 'vowel' | 'solve' | 'cons' = 'menu';
   let revealTimer = 0;
+  let finaleTimer = 0;
+  let lastTick = 0;
+  let fmode: 'cons' | 'vowel' | 'solve' = 'cons';
 
   stage.textContent = '';
   const wheel = new WheelView(state.wheel);
@@ -217,6 +227,15 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     const prev = state;
     state = reduce(state, a);
     if (state === prev) return;
+    if (a.type === 'F_TICK') {
+      // only the clock changes: avoid rebuilding the panel (it would drop the typed text)
+      renderTimer();
+      if (state.finale?.stage !== prev.finale?.stage || Math.ceil(state.finale!.timeLeft / 1000) !== Math.ceil(prev.finale!.timeLeft / 1000)) {
+        if (state.finale?.stage !== prev.finale?.stage) render();
+        afterChange();
+      }
+      return;
+    }
     if (state.current !== prev.current || state.phase !== prev.phase) review = null;
     if (state.current !== prev.current || state.phase !== 'turn') mode = 'menu';
     render();
@@ -238,8 +257,33 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     }
   }
 
+  /** Final game: the shared 60-second clock runs while a board is on. */
+  function syncFinaleTimer() {
+    if (state.phase === 'finale' && state.finale?.stage === 'board' && !finaleTimer) {
+      lastTick = performance.now();
+      finaleTimer = window.setInterval(() => {
+        const now = performance.now();
+        dispatch({ type: 'F_TICK', ms: now - lastTick });
+        lastTick = now;
+      }, 200);
+    } else if ((state.phase !== 'finale' || state.finale?.stage !== 'board') && finaleTimer) {
+      clearInterval(finaleTimer);
+      finaleTimer = 0;
+    }
+  }
+
+  function renderTimer() {
+    const f = state.finale;
+    if (!f) return;
+    const sec = f.stage === 'board' ? Math.ceil(f.timeLeft / 1000) : null;
+    pendingEl.textContent = sec === null ? '' : String(sec);
+    pendingEl.classList.toggle('timer', sec !== null);
+    pendingEl.classList.toggle('low', sec !== null && sec <= 10);
+  }
+
   function afterChange() {
     syncReveal();
+    syncFinaleTimer();
     if (!host) return;
     clearTimeout(timer);
     deadline = 0;
@@ -270,7 +314,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         review = null;
         dispatch({ type: 'SKIP', phrase: buildRound(roundType(state), st.fonte ?? 'banca')[0] });
       }
-      else if (i.k === 'next') dispatch({ type: 'NEXT_ROUND', round: i.type ? { type: i.type, phrases: buildRound(i.type, st.fonte ?? 'banca') } : undefined });
+      else if (i.k === 'next') dispatch({ type: 'NEXT_ROUND', round: state.toFinale ? tieRound() : i.type ? { type: i.type, phrases: buildRound(i.type, st.fonte ?? 'banca') } : undefined });
       else if (i.k === 'addPhrase') {
         note = addCustom(String(i.text), String(i.tema)) ?? 'Frase aggiunta ✓';
         broadcast();
@@ -280,6 +324,14 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       if (review) return;
       if (i.k === 'book') { dispatch({ type: 'BOOK', player: seat }); return; }
       if (seat !== state.current) return;
+      if (state.phase === 'finale') {
+        if (i.k === 'spin') void finaleSpin(Math.min(1, Math.max(0.2, Number(i.power) || 0.5)));
+        else if (i.k === 'fstart') dispatch({ type: 'F_START' });
+        else if (i.k === 'fchoose') dispatch({ type: 'F_CHOOSE', i: Number(i.i) });
+        else if (i.k === 'call' || i.k === 'vowel') dispatch({ type: 'F_CALL', letter: String(i.l) });
+        else if (i.k === 'solve') dispatch({ type: 'F_SOLVE', text: String(i.text).slice(0, 80) });
+        return;
+      }
       if (i.k === 'express') dispatch({ type: 'EXPRESS', go: !!i.go });
       else if (i.k === 'spin') void spin(Math.min(1, Math.max(0.2, Number(i.power) || 0.5)));
       else if (i.k === 'call') dispatch({ type: 'CALL', letter: String(i.l) });
@@ -320,6 +372,22 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     }
   }
 
+  const tieRound = () => ({ type: 'ultimo' as const, phrases: buildRound('ultimo', st.fonte ?? 'banca').slice(0, 1) });
+
+  async function finaleSpin(power: number) {
+    const f = state.finale;
+    if (!f || f.stage !== 'wheel') return;
+    const angle = spinAngle(f.wheelAngle, power, Math.random());
+    const first = segmentAt(angle);
+    const others = Array.from({ length: ENVELOPE_COUNT }, (_, i) => i).filter((i) => i !== first);
+    const a = others.splice(Math.floor(Math.random() * others.length), 1)[0];
+    const b = others[Math.floor(Math.random() * others.length)];
+    dispatch({ type: 'F_SPIN', angle, picks: [a, b] });
+    sfx.spin();
+    await wheel.spinTo(angle, (3500 + power * 2500) * SPEED);
+    dispatch({ type: 'F_SPIN_DONE' });
+  }
+
   async function spin(power: number) {
     if (state.phase !== 'turn') return;
     const angle = spinAngle(state.wheelAngle, power, Math.random());
@@ -353,8 +421,59 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     setTimeout(() => inp.focus(), 0);
   }
 
+  function renderFinalePanel() {
+    const f = state.finale!;
+    const champ = state.players[f.champion];
+    const called = new Set(f.called);
+    if (host && f.stage !== 'reveal') {
+      const t = f.stage === 'wheel' ? `${champ.name}: gira la Ruota delle Meraviglie!` : f.stage === 'spinning' ? 'La ruota gira…' : f.stage === 'choose' ? `${champ.name}: scegli la tua busta!` : f.stage === 'drawn' ? `${champ.name}: pronto?` : `${champ.name} gioca!`;
+      panel.append(h('div', 'hint big-hint', t), h('div', 'hint sm', 'Usa il telefono del campione'));
+      return;
+    }
+    if (f.stage === 'wheel') {
+      const b = h('button', 'act spin', 'GIRA LA RUOTA DELLE MERAVIGLIE'); b.dataset.testid = 'fspin';
+      b.onclick = () => finaleSpin(0.3 + Math.random() * 0.7);
+      panel.append(h('div', 'hint', `${champ.name}, estrai le tue buste!`), b);
+    } else if (f.stage === 'spinning') {
+      panel.append(h('div', 'hint', 'La ruota gira…'));
+    } else if (f.stage === 'drawn') {
+      const b = h('button', 'act spin', 'INIZIA! 60 SECONDI'); b.dataset.testid = 'fstart';
+      b.onclick = () => dispatch({ type: 'F_START' });
+      panel.append(h('div', 'hint', 'Tre buste, tre tabelloni, un solo cronometro'), b);
+    } else if (f.stage === 'board') {
+      const tabs = h('div', 'actions');
+      (['cons', 'vowel', 'solve'] as const).forEach((m) => {
+        const b = h('button', 'act small' + (fmode === m ? ' spin' : ''), m === 'cons' ? `CONSONANTI (${f.consonantsLeft > 50 ? '∞' : f.consonantsLeft})` : m === 'vowel' ? `VOCALI (${f.vowelsLeft})` : 'RISOLVI');
+        b.dataset.testid = `ftab-${m}`;
+        b.onclick = () => { fmode = m; renderPanel(); };
+        tabs.append(b);
+      });
+      panel.append(tabs);
+      if (fmode === 'cons') panel.append(keyboard(CONSONANTS, new Set([...called, ...(f.consonantsLeft <= 0 ? CONSONANTS : '')]), (l) => dispatch({ type: 'F_CALL', letter: l })));
+      else if (fmode === 'vowel') panel.append(keyboard(VOWELS, new Set([...called, ...(f.vowelsLeft <= 0 ? VOWELS : '')]), (l) => dispatch({ type: 'F_CALL', letter: l })));
+      else solveForm('Prova la soluzione', (text) => dispatch({ type: 'F_SOLVE', text }));
+    } else if (f.stage === 'choose') {
+      panel.append(h('div', 'hint', `${champ.name}, scegli una busta conquistata!`));
+      const row = h('div', 'actions');
+      f.won.forEach((w, i) => {
+        const b = h('button', 'act' + (w ? ' spin' : ''), `BUSTA ${f.envelopes[i] + 1}`); b.dataset.testid = `choose-${i}`;
+        b.disabled = !w;
+        b.onclick = () => dispatch({ type: 'F_CHOOSE', i });
+        row.append(b);
+      });
+      panel.append(row);
+    } else {
+      const prize = f.prize;
+      panel.append(h('div', 'hint big-hint', prize ? `${champ.name} vince ${prize} punti!` : 'Nessun premio…'));
+      const next = h('button', 'act spin', 'CLASSIFICA'); next.dataset.testid = 'fend';
+      next.onclick = () => dispatch({ type: 'F_END' });
+      panel.append(next);
+    }
+  }
+
   function renderPanel() {
     panel.textContent = '';
+    if (state.phase === 'finale' && state.finale) return renderFinalePanel();
     const called = new Set(state.called);
     const me = state.players[state.current];
     const menuBack = () => { mode = 'menu'; renderPanel(); };
@@ -436,8 +555,8 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         solveForm('Prova la soluzione', (text) => dispatch({ type: 'SOLVE', text }), menuBack);
       }
     } else if (state.phase === 'roundEnd') {
-      const next = h('button', 'act spin', 'PROSSIMA MANCHE'); next.dataset.testid = 'next';
-      next.onclick = () => dispatch({ type: 'NEXT_ROUND' });
+      const next = h('button', 'act spin', state.toFinale ? 'VAI ALLA FINALE' : 'PROSSIMA MANCHE'); next.dataset.testid = 'next';
+      next.onclick = () => dispatch({ type: 'NEXT_ROUND', round: state.toFinale ? tieRound() : undefined });
       const w = state.roundWinner === null ? 'Fine manche' : `${state.players[state.roundWinner].name} vince la manche!`;
       panel.append(h('div', 'hint', w), next);
     }
@@ -445,6 +564,20 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
 
   function renderScores() {
     scores.textContent = '';
+    if (state.phase === 'finale' && state.finale) {
+      const f = state.finale;
+      f.kinds.forEach((k, i) => {
+        const drawn = f.envelopes.length > 0 && f.stage !== 'wheel' && f.stage !== 'spinning';
+        const revealed = f.stage === 'reveal';
+        const c = h('div', 'score env' + (i === f.boardIdx && f.stage === 'board' ? ' active' : '') + (f.won[i] ? ' won' : ''));
+        c.style.setProperty('--c', '#f5c518');
+        c.dataset.testid = `env-${i}`;
+        c.append(h('div', 'pname', BOARD_TITLES[k]), h('div', 'pround', drawn ? `✉ ${f.envelopes[i] + 1}` : '✉ ?'),
+          h('div', 'ptotal', revealed ? String(f.values[f.envelopes[i]]) + (f.chosen === i ? ' ★' : '') : f.won[i] ? 'conquistata!' : ' '));
+        scores.append(c);
+      });
+      return;
+    }
     state.players.forEach((p, i) => {
       const c = h('div', 'score' + (i === state.current && state.phase !== 'gameEnd' ? ' active' : ''));
       c.style.setProperty('--c', p.color);
@@ -460,6 +593,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   let shownPhrase: unknown = null;
   let shownWheel: unknown = state.wheel;
   function render() {
+    if (state.phase === 'finale' && state.finale) return renderFinale();
     const ph = currentPhrase(state);
     const rt = roundType(state);
     if (shownPhrase !== ph) {
@@ -479,11 +613,29 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     if (state.phase === 'gameEnd') showFinal();
   }
 
+  function renderFinale() {
+    const f = state.finale!;
+    const ph = finalePhrase(f);
+    if (shownPhrase !== ph) {
+      board.setPhrase(ph, `${BOARD_TITLES[finaleKind(f)]} · ${ph.tema}`);
+      shownPhrase = ph;
+    }
+    if (shownWheel !== state.wheel) { wheel.setWheel(state.wheel); wheel.setAngle(0); shownWheel = state.wheel; }
+    board.update(new Set(f.called), new Set(f.forced));
+    roundTag.textContent = `FINALE · La Ruota delle Meraviglie · ${state.players[f.champion].name}`;
+    message.textContent = state.message;
+    left.classList.remove('dim');
+    renderTimer();
+    renderPanel();
+    renderScores();
+  }
+
   function showFinal() {
     overlay.classList.remove('hidden');
     overlay.textContent = '';
     const box = h('div', 'final');
     box.append(h('h2', '', 'Classifica finale'));
+    if (state.finale && state.finale.prize > 0) box.append(h('div', 'prize', `${state.players[state.finale.champion].name} ha vinto ${state.finale.prize} punti alla Ruota delle Meraviglie!`));
     ranking(state).forEach((p, i) => {
       const r = h('div', 'rank');
       r.style.setProperty('--c', p.color);
@@ -501,6 +653,10 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     const l = e.key.toUpperCase();
     if (!/^[A-Z]$/.test(l)) return;
     if (host) return;
+    if (state.phase === 'finale') {
+      if (state.finale?.stage === 'board' && fmode !== 'solve') dispatch({ type: 'F_CALL', letter: l });
+      return;
+    }
     if (state.phase === 'consonant' || mode === 'cons') dispatch({ type: 'CALL', letter: l });
     else if (state.phase === 'turn' && mode === 'vowel') dispatch({ type: 'BUY_VOWEL', letter: l });
   });
@@ -509,6 +665,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     state: () => state,
     dispatch,
     /** Land the wheel on segment `idx` without animation. */
+    fin: () => state.finale,
     force: (idx: number) => {
       dispatch({ type: 'SPIN', angle: -(idx * 15 + 7) - 1440 });
       dispatch({ type: 'SPIN_DONE' });

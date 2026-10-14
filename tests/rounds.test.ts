@@ -217,3 +217,61 @@ describe('next round override', () => {
     expect(s.wheel.filter((x) => x.kind === 'express')).toHaveLength(3);
   });
 });
+
+import { ENVELOPE_VALUES } from '../src/core/finale';
+import { leaders } from '../src/core/game';
+
+describe('finale integration', () => {
+  const setup = { phrases: [P('CASA DOLCE CASA'), P('CHI VA PIANO'), P('UN GATTO')], values: [...ENVELOPE_VALUES] };
+  const g = () => newGame(['A', 'B', 'C'], [P('CASA')], { ...DEFAULT_CONFIG, finale: true }, undefined, setup);
+
+  it('after the last round the highest total plays the final game', () => {
+    let s = give(g(), 1, { total: 3000 });
+    s = reduce(s, { type: 'SOLVE', text: 'casa' }); // A wins the round with 0 points
+    expect(s.phase).toBe('roundEnd');
+    expect(s.toFinale).toBe(true);
+    s = reduce(s, { type: 'NEXT_ROUND', round: { type: 'ultimo', phrases: [P('TIE')] } });
+    expect(s.phase).toBe('finale');
+    expect(s.finale!.champion).toBe(1);
+    expect(s.wheel).toHaveLength(24);
+  });
+
+  it('a tie at the top is settled with a lightning phrase among the tied players', () => {
+    let s = give(give(g(), 0, { total: 500 }), 1, { total: 500 });
+    s = reduce(give(s, 0, { round: 0 }), { type: 'SOLVE', text: 'casa' });
+    s = reduce(s, { type: 'NEXT_ROUND', round: { type: 'ultimo', phrases: [P('LAMPO')] } });
+    expect(s.phase).toBe('ultimo');
+    expect(s.excluded).toEqual([2]);
+    expect(reduce(s, { type: 'BOOK', player: 2 })).toBe(s);
+    s = reduce(s, { type: 'BOOK', player: 1 });
+    s = reduce(s, { type: 'SOLVE', text: 'lampo' });
+    expect(s.toFinale).toBe(true);
+    expect(leaders(s)).toEqual([1]);
+    s = reduce(s, { type: 'NEXT_ROUND', round: { type: 'ultimo', phrases: [P('X')] } });
+    expect(s.phase).toBe('finale');
+    expect(s.finale!.champion).toBe(1);
+  });
+
+  it('full finale: solve a board, choose the envelope, prize goes to the champion', () => {
+    let s = reduce(give(g(), 0, { total: 100 }), { type: 'SOLVE', text: 'casa' });
+    s = reduce(s, { type: 'NEXT_ROUND' });
+    expect(s.finale!.champion).toBe(0);
+    s = reduce(s, { type: 'F_SPIN', angle: -(3 * 15 + 7) - 1440, picks: [7, 9] });
+    s = reduce(s, { type: 'F_SPIN_DONE' });
+    s = reduce(s, { type: 'F_START' });
+    s = reduce(s, { type: 'FORCE_SOLVE' });
+    s = reduce(s, { type: 'F_TICK', ms: 60000 });
+    expect(s.finale!.stage).toBe('choose');
+    s = reduce(s, { type: 'F_CHOOSE', i: 0 });
+    const prize = s.finale!.prize;
+    expect(prize).toBe(setup.values[3]);
+    s = reduce(s, { type: 'F_END' });
+    expect(s.phase).toBe('gameEnd');
+    expect(s.players[0].total).toBe(100 + prize);
+  });
+
+  it('finale can be disabled', () => {
+    const s = reduce(newGame(['A', 'B'], [P('CASA')], { ...DEFAULT_CONFIG, finale: false }, undefined, setup), { type: 'SOLVE', text: 'casa' });
+    expect(s.phase).toBe('gameEnd');
+  });
+});

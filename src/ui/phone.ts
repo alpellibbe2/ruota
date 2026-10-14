@@ -72,6 +72,7 @@ export function startPhone(body: HTMLElement, code: string) {
   let lastCurrent = -1;
   let lastEvent = 0;
   let tick = 0;
+  let fmode: 'cons' | 'vowel' | 'solve' = 'cons';
 
   function connect() {
     root.textContent = '';
@@ -102,6 +103,7 @@ export function startPhone(body: HTMLElement, code: string) {
         if (m.v.current !== lastCurrent || m.v.phase !== 'turn') mode = 'menu';
         if (m.v.current === m.v.you && lastCurrent !== m.v.you) navigator.vibrate?.(200);
         if (m.v.eventId !== lastEvent && m.v.message.includes('Bancarotta')) navigator.vibrate?.([100, 60, 300]);
+        if (m.v.finale?.stage === 'board') m.v.deadline = Date.now() + m.v.finale.timeLeft;
         lastCurrent = m.v.current;
         lastEvent = m.v.eventId;
         view = m.v;
@@ -136,7 +138,7 @@ export function startPhone(body: HTMLElement, code: string) {
     const mk = (label: string, tid: string, i: import('../net/protocol').ConductorIntent, dis = false) => {
       const b = h('button', 'pbtn small', label); b.dataset.testid = tid; b.disabled = dis; b.onclick = () => send(i); acts.append(b);
     };
-    const live = v.phase === 'turn' || v.phase === 'consonant';
+    const live = v.phase === 'turn' || v.phase === 'consonant' || v.phase === 'booked' || (v.phase === 'finale' && v.finale?.stage === 'board');
     mk('Accetta risposta a voce', 'c-voice', { k: 'accept' }, !live);
     mk('Passa turno', 'c-pass', { k: 'pass' }, !live);
     mk('Salta frase', 'c-skip', { k: 'skip' }, !live);
@@ -200,7 +202,7 @@ export function startPhone(body: HTMLElement, code: string) {
     clearInterval(tick);
     const upd = () => {
       const left = v.deadline ? Math.max(0, Math.ceil((v.deadline - Date.now()) / 1000)) : 0;
-      timer.textContent = mine && v.deadline ? `⏱ ${left}s` : '';
+      timer.textContent = v.deadline && (mine || v.phase === 'finale') ? `⏱ ${left}s` : '';
     };
     upd();
     tick = window.setInterval(upd, 500);
@@ -229,7 +231,54 @@ export function startPhone(body: HTMLElement, code: string) {
     };
     const back = () => { const b = h('button', 'pbtn small', 'Indietro'); b.onclick = () => { mode = 'menu'; render(); }; return b; };
 
-    if (v.phase === 'gameEnd') {
+    if (v.phase === 'finale' && v.finale) {
+      const f = v.finale;
+      const champ = v.players[f.champion];
+      if (v.you !== f.champion) {
+        ctrl.append(h('div', 'pbigmsg', f.stage === 'reveal' ? 'Guarda lo schermo!' : `Tifa per ${champ.name}!`));
+      } else if (f.stage === 'wheel') {
+        const pad = h('div', 'pswipe', 'SWIPE: RUOTA DELLE MERAVIGLIE'); pad.dataset.testid = 'swipe';
+        let start: { y: number; t: number } | null = null;
+        pad.onpointerdown = (e) => { start = { y: e.clientY, t: performance.now() }; pad.setPointerCapture(e.pointerId); };
+        pad.onpointerup = (e) => {
+          if (!start) return;
+          const dist = Math.abs(e.clientY - start.y);
+          const speed = dist / Math.max(60, performance.now() - start.t);
+          start = null;
+          if (dist > 20) client?.send({ k: 'spin', power: Math.min(1, speed / 2) });
+        };
+        const tap = h('button', 'pbtn', 'GIRA'); tap.dataset.testid = 'pspin';
+        tap.onclick = () => client?.send({ k: 'spin', power: 0.3 + Math.random() * 0.7 });
+        ctrl.append(h('div', 'phint', 'Sei il campione! Estrai le tue buste'), pad, tap);
+      } else if (f.stage === 'spinning') {
+        ctrl.append(h('div', 'pbigmsg', 'La ruota gira…'));
+      } else if (f.stage === 'drawn') {
+        const go = h('button', 'pbook', 'INIZIA!'); go.dataset.testid = 'pfstart';
+        go.onclick = () => client?.send({ k: 'fstart' });
+        ctrl.append(h('div', 'phint', `Buste ${f.envelopes.join(', ')} · 60 secondi`), go);
+      } else if (f.stage === 'board') {
+        const tabs = h('div', 'prowbtn');
+        (['cons', 'vowel', 'solve'] as const).forEach((m) => {
+          const b = h('button', 'pbtn small' + (fmode === m ? ' on' : ''), m === 'cons' ? `Consonanti ${f.consonantsLeft > 50 ? '∞' : f.consonantsLeft}` : m === 'vowel' ? `Vocali ${f.vowelsLeft}` : 'Risolvi');
+          b.dataset.testid = `pftab-${m}`;
+          b.onclick = () => { fmode = m; render(); };
+          tabs.append(b);
+        });
+        ctrl.append(tabs);
+        if (fmode === 'cons') ctrl.append(kb(CONSONANTS, (l) => client?.send({ k: 'call', l })));
+        else if (fmode === 'vowel') ctrl.append(kb(VOWELS, (l) => client?.send({ k: 'vowel', l })));
+        else solveForm();
+      } else if (f.stage === 'choose') {
+        ctrl.append(h('div', 'phint', 'Scegli la tua busta!'));
+        f.won.forEach((w, i) => {
+          const b = h('button', 'pbtn', `BUSTA ${f.envelopes[i]}`); b.disabled = !w; b.dataset.testid = `pchoose-${i}`;
+          b.onclick = () => client?.send({ k: 'fchoose', i });
+          ctrl.append(b);
+        });
+      } else {
+        ctrl.append(h('div', 'pbigmsg', f.prize ? `Hai vinto ${f.prize} punti!` : 'Guarda lo schermo'));
+      }
+    } else if (v.phase === 'gameEnd') {
       ctrl.append(h('div', 'pbigmsg', 'Partita finita!'));
     } else if (v.phase === 'roundEnd') {
       ctrl.append(h('div', 'pbigmsg', 'Manche finita! Guarda lo schermo'));

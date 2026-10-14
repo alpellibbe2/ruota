@@ -138,3 +138,17 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .rsel { font: inherit; font-size: 26px; padding: 6px 10px; border-radius: 10px; border: 0; }
 .pbook { flex: 1; min-height: 240px; font: inherit; font-weight: 800; font-size: 52px; border-radius: 24px; border: 0; background: #f5c518; color: #1a237e; }
 .psel { font: inherit; font-size: 18px; padding: 8px; border-radius: 10px; border: 0; flex: 1; }
+
+/* finale */
+.pending.timer { font-size: 110px; color: #fff; text-shadow: 0 4px 12px #000a; }
+.pending.timer.low { color: #ff5252; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { transform: translate(-50%, -50%) scale(1.15); } }
+.score.env { max-width: 360px; }
+.score.env.won { background: #2e7d32; opacity: 1; }
+.prize { font-size: 38px; color: #ffeb3b; }
+.pbtn.on { background: #f5c518; }
+.message { height: 76px; font-size: 34px; line-height: 1.05; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.score.env { padding-top: 2px; }
+.score.env .pname { font-size: 26px; }
+.score.env .pround { font-size: 44px; }
+.score.env .ptotal { font-size: 22px; min-height: 28px; }
