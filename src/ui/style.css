@@ -1,5 +1,5 @@
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Baloo 2', 'Trebuchet MS', sans-serif; font-weight: 600; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: 'Montserrat', 'Arial', sans-serif; font-weight: 700; }
 #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center;
   background: radial-gradient(ellipse 60% 45% at 50% -8%, #4a22a8cc, transparent 70%), radial-gradient(ellipse 40% 50% at 100% 100%, #b0189a55, transparent 70%),
     radial-gradient(ellipse 40% 50% at 0% 100%, #0f6fd055, transparent 70%), linear-gradient(180deg, #17185c, var(--night)); color: #fff; overflow: clip; }
@@ -14,7 +14,7 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 
 /* setup */
 .setup { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
-.logo { font-size: 150px; margin: 0; letter-spacing: 8px; color: var(--yellow); text-shadow: 0 6px 0 var(--purple), 0 0 40px #ff2bd699, 0 14px 30px #0008; font-weight: 800; }
+.logo { font-size: 150px; margin: 0; letter-spacing: 8px; color: var(--yellow); text-shadow: 0 6px 0 var(--purple), 0 0 40px #ff2bd699, 0 14px 30px #0008; font-weight: 900; }
 .sub { margin: 0 0 10px; font-size: 32px; opacity: .8; }
 .row { display: flex; align-items: center; gap: 14px; font-size: 32px; }
 .row > span:first-child { min-width: 260px; }
@@ -51,7 +51,7 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .panel { min-height: 300px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .hint { font-size: 38px; }
 .actions { display: flex; gap: 16px; align-items: center; }
-.act { white-space: nowrap; font-size: 34px; padding: 18px 26px; border-radius: 20px; border: 0; background: #fff; color: var(--ink); box-shadow: 0 6px 0 var(--btn-sh); }
+.act { white-space: nowrap; font-size: 30px; padding: 18px 24px; border-radius: 20px; border: 0; background: #fff; color: var(--ink); box-shadow: 0 6px 0 var(--btn-sh); }
 .act:not(:disabled):hover, .key:not(:disabled):hover { filter: brightness(1.08); }
 .act.spin { background: linear-gradient(180deg, #c04cff, var(--purple)); color: var(--yellow); box-shadow: 0 6px 0 #5a1590, 0 0 24px #b03cff88; }
 .act.small { font-size: 28px; padding: 10px 24px; }
@@ -116,7 +116,7 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 
 /* phone */
 .phone-body { overflow: auto; }
-.phone { position: fixed; inset: 0; overflow: auto; background: linear-gradient(180deg, #1d1866, var(--night)); color: #fff; font-family: 'Baloo 2', sans-serif; display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; max-width: 520px; margin: 0 auto; }
+.phone { position: fixed; inset: 0; overflow: auto; background: linear-gradient(180deg, #1d1866, var(--night)); color: #fff; font-family: 'Montserrat', sans-serif; display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; max-width: 520px; margin: 0 auto; }
 .plogo { text-align: center; color: var(--yellow); font-size: 56px; margin: 30px 0 0; font-weight: 800; text-shadow: 0 4px 0 var(--purple), 0 0 24px #ff2bd688; }
 .psub, .pstatus { text-align: center; font-size: 22px; margin: 6px 0; }
 .pname-in, .psolve-in { font: inherit; font-size: 26px; padding: 12px; border-radius: 12px; border: 0; text-align: center; }
@@ -183,7 +183,7 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .score.env.won { background: #2e7d32; opacity: 1; }
 .prize { font-size: 38px; color: var(--yellow); }
 .pbtn.on { background: var(--yellow); }
-.message { height: 76px; font-size: 34px; line-height: 1.05; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.message { height: 76px; font-size: 31px; line-height: 1.05; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .score.env { padding-top: 2px; }
 .score.env .pname { font-size: 26px; }
 .score.env .pround { font-size: 44px; }

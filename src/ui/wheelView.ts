@@ -33,11 +33,16 @@ export class WheelView {
     this.pointer.className = 'pointer';
     this.el.append(this.pointer);
     this.draw(wheel);
+    // the canvas does not repaint by itself when the web fonts arrive
+    document.fonts?.ready.then(() => this.draw(this.wheel));
   }
 
   setWheel(wheel: Segment[]) { this.draw(wheel); }
 
+  private wheel: Segment[] = [];
+
   private draw(wheel: Segment[]) {
+    this.wheel = wheel;
     const g = this.canvas.getContext('2d')!;
     const c = SIZE / 2;
     const R = c - 14;
@@ -59,7 +64,7 @@ export class WheelView {
       const label = segmentLabel(seg);
       const isValue = seg.kind === 'value' && !seg.token;
       g.fillStyle = LIGHT.includes(bg) ? '#16124d' : isValue || bg === '#b71c1c' ? '#ffd91a' : '#fff';
-      g.font = isValue ? '800 48px "Baloo 2", sans-serif' : '800 30px "Baloo 2", sans-serif';
+      g.font = isValue ? '900 50px "Nunito", sans-serif' : '800 26px "Montserrat", sans-serif';
       g.shadowColor = LIGHT.includes(bg) ? 'transparent' : '#000a'; g.shadowOffsetY = 3; g.shadowBlur = 4;
       g.fillText(label, R - 26, 0);
       g.restore();
