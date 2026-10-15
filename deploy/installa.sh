@@ -80,8 +80,5 @@ done
 IP="$(hostname -I | awk '{print $1}')"
 echo
 echo "Fatto. Apri sulla TV:  http://$IP/"
-# Con il Fritz!Box ogni dispositivo ha anche un nome <hostname>.fritz.box
-NOME="$(hostname).fritz.box"
-getent hosts "$NOME" >/dev/null && echo "         oppure:       http://$NOME/"
 $RELAY && echo "ATTENZIONE: relay forzato attivo. Per l'uso normale rilancia ./installa.sh senza --relay."
 exit 0
