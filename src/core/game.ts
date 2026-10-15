@@ -83,7 +83,7 @@ export type Action =
   | { type: 'F_END' };
 
 export const DEFAULT_CONFIG: Config = { vowelCost: 500, bankruptAll: true, typoTolerance: true };
-export const PLAYER_COLORS = ['#e53935', '#1e88e5', '#fdd835', '#43a047', '#8e24aa', '#fb8c00'];
+export const PLAYER_COLORS = ['#d4145a', '#f7931e', '#1e63e6', '#1fae6a', '#9b3fe0', '#12b8d8'];
 
 export function newGame(
   names: string[],

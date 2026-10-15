@@ -385,7 +385,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   }
 
   function confetti() {
-    const colors = ['#e53935', '#fdd835', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00'];
+    const colors = ['#ffd91a', '#ff2bd6', '#2ad4ff', '#8e2bd0', '#ffffff', '#f7931e'];
     for (let i = 0; i < 70; i++) {
       const p = h('i', 'confetto');
       p.style.left = `${Math.random() * 100}%`;
@@ -643,7 +643,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         const drawn = f.envelopes.length > 0 && f.stage !== 'wheel' && f.stage !== 'spinning';
         const revealed = f.stage === 'reveal';
         const c = h('div', 'score env' + (i === f.boardIdx && f.stage === 'board' ? ' active' : '') + (f.won[i] ? ' won' : ''));
-        c.style.setProperty('--c', '#f5c518');
+        c.style.setProperty('--c', '#6b4ce6');
         c.dataset.testid = `env-${i}`;
         c.append(h('div', 'pname', BOARD_TITLES[k]), h('div', 'pround', drawn ? `✉ ${f.envelopes[i] + 1}` : '✉ ?'),
           h('div', 'ptotal', revealed ? String(f.values[f.envelopes[i]]) + (f.chosen === i ? ' ★' : '') : f.won[i] ? 'conquistata!' : ' '));

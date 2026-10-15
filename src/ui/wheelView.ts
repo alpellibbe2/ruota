@@ -1,13 +1,15 @@
 import { Segment, segmentAt, segmentLabel, SEGMENT_ANGLE } from '../core/wheel';
 import { sfx } from './audio';
 
-const COLORS = ['#e53935', '#fdd835', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00acc1', '#d81b60'];
+// studio palette: purple, navy, royal blue, light blue; values in yellow
+const COLORS = ['#8e2bd0', '#262a6b', '#1f47c9', '#4f86e8'];
+const LIGHT = ['#f4f4fb', '#00e676', '#ffab00'];
 const SIZE = 800;
 
 function segBg(seg: Segment, i: number): string {
   if (seg.kind === 'bankrupt') return '#111';
-  if (seg.kind === 'pass') return '#f5f5f5';
-  if (seg.kind === 'express') return '#ff1fa9';
+  if (seg.kind === 'pass') return '#f4f4fb';
+  if (seg.kind === 'express') return '#ff2bd6';
   if (seg.token === 'jolly') return '#00e676';
   if (seg.token === 'premio') return '#ffab00';
   if (seg.token === 'jackpot') return '#b71c1c';
@@ -40,7 +42,7 @@ export class WheelView {
     const c = SIZE / 2;
     const R = c - 14;
     g.clearRect(0, 0, SIZE, SIZE);
-    g.beginPath(); g.arc(c, c, c - 2, 0, Math.PI * 2); g.fillStyle = '#f5c518'; g.fill();
+    g.beginPath(); g.arc(c, c, c - 2, 0, Math.PI * 2); g.fillStyle = '#10123a'; g.fill();
     wheel.forEach((seg, i) => {
       // segment 0 starts at the top (pointer) and goes clockwise
       const a0 = (i * SEGMENT_ANGLE - 90) * Math.PI / 180;
@@ -49,24 +51,26 @@ export class WheelView {
       const bg = segBg(seg, i);
       g.fillStyle = bg;
       g.fill();
-      g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke();
+      g.strokeStyle = '#0a0b2e'; g.lineWidth = 3; g.stroke();
       g.save();
       g.translate(c, c);
       g.rotate((a0 + a1) / 2);
       g.textAlign = 'right'; g.textBaseline = 'middle';
       const label = segmentLabel(seg);
-      g.fillStyle = ['#f5f5f5', '#fdd835', '#00e676', '#ffab00'].includes(bg) ? '#222' : bg === '#b71c1c' ? '#ffd600' : '#fff';
-      g.font = seg.kind === 'value' && !seg.token ? '800 46px "Baloo 2", sans-serif' : '800 30px "Baloo 2", sans-serif';
+      const isValue = seg.kind === 'value' && !seg.token;
+      g.fillStyle = LIGHT.includes(bg) ? '#16124d' : isValue || bg === '#b71c1c' ? '#ffd91a' : '#fff';
+      g.font = isValue ? '800 48px "Baloo 2", sans-serif' : '800 30px "Baloo 2", sans-serif';
+      g.shadowColor = LIGHT.includes(bg) ? 'transparent' : '#000a'; g.shadowOffsetY = 3; g.shadowBlur = 4;
       g.fillText(label, R - 26, 0);
       g.restore();
     });
     for (let i = 0; i < wheel.length; i++) {
       const a = (i * SEGMENT_ANGLE - 90) * Math.PI / 180;
       g.beginPath(); g.arc(c + Math.cos(a) * (R - 6), c + Math.sin(a) * (R - 6), 7, 0, Math.PI * 2);
-      g.fillStyle = '#fff'; g.fill();
+      g.fillStyle = '#d8dcec'; g.fill();
     }
-    g.beginPath(); g.arc(c, c, 70, 0, Math.PI * 2); g.fillStyle = '#1a237e'; g.fill();
-    g.lineWidth = 8; g.strokeStyle = '#f5c518'; g.stroke();
+    g.beginPath(); g.arc(c, c, 70, 0, Math.PI * 2); g.fillStyle = '#16124d'; g.fill();
+    g.lineWidth = 8; g.strokeStyle = '#ff2bd6'; g.stroke();
   }
 
   setAngle(a: number) {
