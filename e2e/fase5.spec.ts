@@ -78,13 +78,15 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
   await page.screenshot({ path: `${SHOTS}/finale-pronto.png` });
   await page.getByTestId('fstart').click();
 
-  // Board 2: Testacoda, only head and tail letters; the champion stops to save time
+  // Board 2: Testacoda, no letters to choose: head and tail letters and the clock start at «PRONTO»;
+  // the champion stops to save time
   s = await st(page);
   expect(s.finale.boardIdx).toBe(1);
+  expect(s.finale.stage).toBe('board');
   expect(s.finale.forced.length).toBeGreaterThan(2);
   expect(s.finale.called).toEqual([]);
+  await expect(page.getByTestId('fstop')).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/finale-testacoda.png` });
-  await pickAndGo();
   await page.getByTestId('fstop').click();
   s = await st(page);
   expect(s.finale.stage).toBe('pause');
@@ -216,9 +218,12 @@ test('finale con i telefoni: solo il campione comanda', async ({ browser }) => {
   for (const w of words) expect(html).not.toContain(w);
   for (let i = 0; i < 3; i++) {
     if (i > 0) await p0.getByTestId('pfstart').click();
-    await expect.poll(async () => (await st(host)).finale.stage).toBe('letters');
     let f = (await st(host)).finale;
-    if (f.kinds[i] !== 'rubasecondi') {
+    await expect.poll(async () => (await st(host)).finale.stage).toBe(f.kinds[i] === 'testacoda' ? 'board' : 'letters');
+    f = (await st(host)).finale;
+    if (f.kinds[i] === 'testacoda') {
+      // nothing to choose: straight to the solution
+    } else if (f.kinds[i] !== 'rubasecondi') {
       await p0.getByTestId('pftab-cons').click();
       while ((await st(host)).finale.consonantsLeft > 0) {
         const left = (await st(host)).finale.consonantsLeft;
@@ -226,14 +231,16 @@ test('finale con i telefoni: solo il campione comanda', async ({ browser }) => {
         await expect.poll(async () => (await st(host)).finale.consonantsLeft).toBe(left - 1);
       }
     }
-    await p0.getByTestId('pftab-vowel').click();
-    while ((await st(host)).finale.vowelsLeft > 0) {
-      const left = (await st(host)).finale.vowelsLeft;
-      await p0.locator('.pkb .pkey:not([disabled])').first().click();
-      await expect.poll(async () => (await st(host)).finale.vowelsLeft).toBe(left - 1);
+    if (f.kinds[i] !== 'testacoda') {
+      await p0.getByTestId('pftab-vowel').click();
+      while ((await st(host)).finale.vowelsLeft > 0) {
+        const left = (await st(host)).finale.vowelsLeft;
+        await p0.locator('.pkb .pkey:not([disabled])').first().click();
+        await expect.poll(async () => (await st(host)).finale.vowelsLeft).toBe(left - 1);
+      }
+      await expect(p0.getByTestId('pfgo')).toBeEnabled();
+      await p0.getByTestId('pfgo').click();
     }
-    await expect(p0.getByTestId('pfgo')).toBeEnabled();
-    await p0.getByTestId('pfgo').click();
     await expect(p0.getByTestId('pfstop')).toBeVisible();
     if (i === 0) {
       await expect(p0.getByTestId('ptimer')).toContainText('⏱');

@@ -520,7 +520,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       b.onclick = () => dispatch({ type: 'F_START' });
       const next = f.stage === 'drawn' ? 0 : f.boardIdx + 1;
       panel.append(h('div', 'hint', f.stage === 'drawn' ? `Tre buste, tre tabelloni, ${secs} secondi in tutto` : `Prossimo: ${BOARD_TITLES[f.kinds[next]]} · restano ${secs} secondi`),
-        h('div', 'hint sm', 'Il tempo parte solo dopo la scelta delle lettere, al VIA'), b);
+        h('div', 'hint sm', f.kinds[next] === 'testacoda' ? 'Niente lettere da scegliere: il tempo parte appena premi PRONTO' : 'Il tempo parte solo dopo la scelta delle lettere, al VIA'), b);
     } else if (f.stage === 'letters') {
       const tabs = h('div', 'actions');
       (['cons', 'vowel'] as const).forEach((m) => {
@@ -541,7 +541,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       solveForm('Prova la soluzione', (text) => dispatch({ type: 'F_SOLVE', text }));
       const stop = h('button', 'act', 'STOP · VEDI LA SOLUZIONE'); stop.dataset.testid = 'fstop';
       stop.onclick = () => dispatch({ type: 'F_STOP' });
-      panel.append(stop, h('div', 'hint sm', 'Fermarsi non vince il tabellone ma risparmia i secondi per i prossimi'));
+      panel.append(stop, h('div', 'hint sm', 'Fermarsi non vince il tabellone, ma salva i secondi'));
     } else if (f.stage === 'choose') {
       panel.append(h('div', 'hint', `${champ.name}, scegli una busta conquistata!`));
       const row = h('div', 'actions');

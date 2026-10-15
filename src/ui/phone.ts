@@ -270,7 +270,7 @@ export function startPhone(body: HTMLElement, code: string) {
         const go = h('button', 'pbook', 'PRONTO'); go.dataset.testid = 'pfstart';
         go.onclick = () => client?.send({ k: 'fstart' });
         ctrl.append(h('div', 'phint', f.stage === 'drawn' ? `Buste ${f.envelopes.join(', ')} · ${secs} secondi in tutto` : `Restano ${secs} secondi per il prossimo tabellone`),
-          h('div', 'phint', 'Il tempo parte solo al VIA, dopo la scelta delle lettere'), go);
+          h('div', 'phint', f.kinds[f.boardIdx + (f.stage === 'pause' ? 1 : 0)] === 'testacoda' ? 'Testacoda: niente lettere, il tempo parte appena premi PRONTO' : 'Il tempo parte solo al VIA, dopo la scelta delle lettere'), go);
       } else if (f.stage === 'letters') {
         ctrl.append(h('div', 'phint', `Tempo fermo: ${Math.ceil(f.timeLeft / 1000)} secondi`));
         const tabs = h('div', 'prowbtn');

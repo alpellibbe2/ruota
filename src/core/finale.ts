@@ -23,7 +23,7 @@ export const BOARD_KINDS: BoardKind[] = ['classico', 'testacoda', 'rubasecondi']
 export const BOARD_TITLES: Record<BoardKind, string> = { classico: 'Tabellone 1', testacoda: 'Testacoda', rubasecondi: 'Rubasecondi' };
 export const BOARD_RULES: Record<BoardKind, string> = {
   classico: 'Lettere già scoperte: scegli 3 consonanti e 1 vocale, poi VIA!',
-  testacoda: 'Solo prima e ultima lettera di ogni parola: scegli 5 consonanti e 2 vocali, poi VIA!',
+  testacoda: 'Solo prima e ultima lettera di ogni parola, niente lettere da scegliere: il tempo scorre!',
   rubasecondi: 'Scegli quante consonanti vuoi e una vocale: ogni lettera che non c\'è toglie 3 secondi!',
 };
 
@@ -107,12 +107,13 @@ export const finaleKind = (f: FinaleState): BoardKind => f.kinds[f.boardIdx];
 function startBoard(f: FinaleState, idx: number): FinaleState {
   const kind = f.kinds[idx];
   const p = f.phrases[idx];
+  // Testacoda has no letters to choose: head and tail letters appear at «PRONTO» and the clock starts at once
   return {
-    ...f, stage: 'letters', boardIdx: idx, picked: [],
+    ...f, stage: kind === 'testacoda' ? 'board' : 'letters', boardIdx: idx, picked: [],
     called: kind === 'classico' ? [...PRE_REVEALED] : [],
     forced: kind === 'testacoda' ? headTailCells(p) : [],
-    consonantsLeft: kind === 'classico' ? 3 : kind === 'testacoda' ? 5 : 99,
-    vowelsLeft: kind === 'testacoda' ? 2 : 1,
+    consonantsLeft: kind === 'classico' ? 3 : kind === 'testacoda' ? 0 : 99,
+    vowelsLeft: kind === 'testacoda' ? 0 : 1,
     message: BOARD_RULES[kind],
   };
 }

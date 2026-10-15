@@ -70,6 +70,7 @@ export interface FinaleView {
   stage: FinaleStage;
   champion: number;
   kind: BoardKind;
+  kinds: BoardKind[];
   timeLeft: number;
   won: boolean[];
   /** Envelope numbers (1-24) drawn for each board; empty until the wheel has stopped. */
@@ -134,7 +135,7 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     boards: s.rounds[s.round].count,
     kids: !!s.config.kids,
     finale: s.finale && {
-      stage: s.finale.stage, champion: s.finale.champion, kind: s.finale.kinds[s.finale.boardIdx], timeLeft: s.finale.timeLeft,
+      stage: s.finale.stage, champion: s.finale.champion, kind: s.finale.kinds[s.finale.boardIdx], kinds: s.finale.kinds, timeLeft: s.finale.timeLeft,
       won: s.finale.won, envelopes: s.finale.stage === 'wheel' ? [] : s.finale.envelopes.map((e) => e + 1),
       consonantsLeft: s.finale.consonantsLeft, vowelsLeft: s.finale.vowelsLeft, picked: s.finale.picked, canGo: canGo(s.finale), boardIdx: s.finale.boardIdx, boards: s.finale.kinds.length,
       prize: s.finale.stage === 'reveal' ? s.finale.prize : 0, chosen: s.finale.chosen,

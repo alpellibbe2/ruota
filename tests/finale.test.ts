@@ -7,10 +7,11 @@ const angleFor = (i: number) => -(i * 15 + 7) - 1440;
 
 /** Board 1 with letters chosen and the clock running. */
 const go = (f: FinaleState, letters: string): FinaleState => {
+  if (f.stage === 'board') return f; // Testacoda: no letters, already running
   for (const l of letters) f = finaleReduce(f, { type: 'F_CALL', letter: l });
   return finaleReduce(f, { type: 'F_GO' });
 };
-const LETTERS = ['BCDA', 'BCDFGAO', 'E'];
+const LETTERS = ['BCDA', '', 'E'];
 const toLetters = (): FinaleState => {
   let f = newFinale(0, setup);
   f = finaleReduce(f, { type: 'F_SPIN', angle: angleFor(5), picks: [10, 23] });
@@ -65,12 +66,15 @@ describe('finale', () => {
     expect(f.stage).toBe('pause');
     expect(finaleReduce(f, { type: 'F_TICK', ms: 5000 })).toBe(f); // waiting for «PRONTO»
     f = finaleReduce(f, { type: 'F_START' });
-    expect(f.stage).toBe('letters');
+    // Testacoda: no letters to choose, the clock runs as soon as the champion is ready
+    expect(f.stage).toBe('board');
     expect(f.boardIdx).toBe(1);
     expect(f.kinds[1]).toBe('testacoda');
     expect(f.called).toEqual([]);
-    expect(f.consonantsLeft).toBe(5);
+    expect(f.forced.length).toBeGreaterThan(0);
+    expect(finaleReduce(f, { type: 'F_CALL', letter: 'B' })).toBe(f);
     expect(f.timeLeft).toBe(FINALE_TIME_MS - 10000); // the clock is shared
+    expect(finaleReduce(f, { type: 'F_TICK', ms: 1000 }).timeLeft).toBe(FINALE_TIME_MS - 11000);
     expect(headTailCells({ text: 'CHI VA', tema: '' }).length).toBe(4);
   });
 
@@ -84,7 +88,7 @@ describe('finale', () => {
     expect(f.timeLeft).toBe(FINALE_TIME_MS - 12000);
     f = finaleReduce(f, { type: 'F_START' });
     expect(f.boardIdx).toBe(1);
-    expect(f.stage).toBe('letters');
+    expect(f.stage).toBe('board');
     // stopping the last board goes to the envelopes (here: none won)
     f = go(f, LETTERS[1]);
     f = finaleReduce(f, { type: 'F_STOP' });
