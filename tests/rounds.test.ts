@@ -51,7 +51,21 @@ describe('jolly and premio', () => {
     expect(s.players[0]).toMatchObject({ jolly: true, round: 0, total: 0 });
     expect(s.current).toBe(1);
   });
-  it('jolly is offered on a wrong or repeated letter, not on Passa, wrong solution, timeout or after round 3', () => {
+  it('jolly is offered on Passa, also in kids mode', () => {
+    for (const kids of [false, true]) {
+      let s = give(game(['classica'], [P('CASA')]), 0, { jolly: true });
+      s = { ...s, config: { ...s.config, kids } };
+      s = spinTo(s, idxOf(s, (x) => x.kind === 'pass'));
+      expect(s.phase).toBe('jolly');
+      const used = reduce(s, { type: 'JOLLY', use: true });
+      expect(used).toMatchObject({ current: 0, phase: 'turn' });
+      expect(used.players[0].jolly).toBe(false);
+      const kept = reduce(s, { type: 'JOLLY', use: false });
+      expect(kept.current).toBe(1);
+      expect(kept.players[0].jolly).toBe(true);
+    }
+  });
+  it('jolly is offered on a wrong or repeated letter, not on wrong solution, timeout or after round 3', () => {
     let s = give(game(['classica'], [P('CASA')]), 0, { jolly: true });
     s = reduce(spinTo(s, 0), { type: 'CALL', letter: 'Z' });
     expect(s.phase).toBe('jolly');
@@ -67,7 +81,6 @@ describe('jolly and premio', () => {
     const j = give(game(['classica'], [P('CASA')]), 0, { jolly: true });
     expect(reduce(j, { type: 'SOLVE', text: 'sbagliato' }).current).toBe(1);
     expect(reduce(j, { type: 'TIMEOUT' }).current).toBe(1);
-    expect(spinTo(j, idxOf(j, (x) => x.kind === 'pass')).current).toBe(1);
     const late = give({ ...game(['classica', 'classica', 'classica', 'classica'], [P('A'), P('B'), P('C'), P('CASA')]), round: 3, board: 3 }, 0, { jolly: true });
     expect(reduce(spinTo(late, 0), { type: 'CALL', letter: 'Z' }).current).toBe(1);
   });

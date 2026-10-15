@@ -53,7 +53,7 @@ export interface GameState {
   event: { id: number; type: GameEvent; count?: number; letter?: string };
   roundWinner: number | null;
   /** Phase 'jolly': what the Jolly would cancel if the player decides to use it. */
-  jollyFor?: 'bankrupt' | 'miss' | null;
+  jollyFor?: 'bankrupt' | 'pass' | 'miss' | null;
   /** The final game, set up at the start and played after the last round. */
   finaleSetup?: FinaleSetup;
   finale?: FinaleState;
@@ -167,8 +167,8 @@ function mistake(s: GameState, message: string, type: GameEvent, letter = false)
   return passTurn(s, message, type);
 }
 
-/** Bancarotta or a wrong letter with a Jolly in hand: the player chooses whether to spend it. */
-function offerJolly(s: GameState, reason: 'bankrupt' | 'miss', message: string, type: GameEvent): GameState {
+/** Bancarotta, Passa or a wrong letter with a Jolly in hand: the player chooses whether to spend it. */
+function offerJolly(s: GameState, reason: 'bankrupt' | 'pass' | 'miss', message: string, type: GameEvent): GameState {
   return {
     ...s, phase: 'jolly', jollyFor: reason, landed: null, pending: 0, pendingToken: null,
     message: `${message} – ${s.players[s.current].name}, usi il Jolly?`, event: emit(s, type),
@@ -267,7 +267,7 @@ export function reduce(s: GameState, a: Action): GameState {
     case 'SPIN_DONE': {
       if (s.phase !== 'spinning' || s.landed === null) return s;
       const seg = s.wheel[s.landed];
-      if (seg.kind === 'pass') return passTurn(s, `${me.name}: Passa!`, 'pass');
+      if (seg.kind === 'pass') return jollyActive(s, me) ? offerJolly(s, 'pass', `${me.name}: Passa!`, 'pass') : passTurn(s, `${me.name}: Passa!`, 'pass');
       if (seg.kind === 'bankrupt') return jollyActive(s, me) ? offerJolly(s, 'bankrupt', `${me.name}: Bancarotta!`, 'bankrupt') : bankrupt(s);
       const value = seg.kind === 'express' ? EXPRESS_SEGMENT_VALUE : seg.value;
       const token = seg.kind === 'express' ? 'express' : seg.token ?? null;
