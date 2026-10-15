@@ -4,7 +4,7 @@ import { occurrences } from './board';
 import { baseLetter, checkSolution, checkWords, hiddenLetters, isFullyRevealed, isLetter, isVowel } from './phrase';
 import {
   EXPRESS_SEGMENT_VALUE, EXPRESS_VALUE, JOLLY_ROUNDS, PREMIO_BONUS, ULTIMO_VALUE,
-  PhraseItem, RoundSpec, RoundType, wheelFor,
+  PhraseItem, RoundSpec, RoundType, isBookingRound, wheelFor,
 } from './rounds';
 import { FinaleAction, FinaleSetup, FinaleState, envelopeWheel, finaleReduce, finalePhrase, newFinale } from './finale';
 import { Segment, segmentAt, Token } from './wheel';
@@ -128,7 +128,7 @@ export const currentPhrase = (s: GameState): PhraseItem => (s.finale ? finalePhr
 export const finaleOn = (s: GameState): boolean => !!s.finaleSetup && s.config.finale !== false;
 export const roundType = (s: GameState): RoundType => s.rounds[s.round].type;
 export const boardNo = (s: GameState): number => s.board - s.rounds[s.round].first;
-const startPhase = (s: GameState): Phase => (roundType(s) === 'ultimo' ? 'ultimo' : 'turn');
+const startPhase = (s: GameState): Phase => (isBookingRound(roundType(s)) ? 'ultimo' : 'turn');
 const jollyActive = (s: GameState, p: Player) => p.jolly && s.round < JOLLY_ROUNDS;
 
 
@@ -210,7 +210,7 @@ function allLetters(text: string): string[] {
 function finishBoard(s: GameState, winner: number | null, message: string): GameState {
   const spec = s.rounds[s.round];
   if (s.board + 1 < spec.first + spec.count) {
-    const first = spec.type === 'ultimo';
+    const first = isBookingRound(spec.type);
     return {
       ...s, board: s.board + 1, called: [], phase: first ? 'ultimo' : 'turn', landed: null, pending: 0,
       pendingToken: null, express: false, booked: null, excluded: [],
@@ -263,7 +263,7 @@ export function reduce(s: GameState, a: Action): GameState {
 
   switch (a.type) {
     case 'SPIN': {
-      if (s.phase !== 'turn' || s.express || rtype === 'ultimo') return s;
+      if (s.phase !== 'turn' || s.express || isBookingRound(rtype)) return s;
       return { ...s, phase: 'spinning', wheelAngle: a.angle, landed: segmentAt(a.angle), message: '', event: emit(s, 'spin') };
     }
     case 'SPIN_DONE': {

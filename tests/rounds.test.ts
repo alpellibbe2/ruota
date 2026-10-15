@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, GameState, newGame, reduce } from '../src/core/game';
-import { PhraseItem, RoundSpec, wheelFor } from '../src/core/rounds';
+import { PhraseItem, RoundSpec, ULTIMO_VALUE, wheelFor } from '../src/core/rounds';
 import { layoutCrossword } from '../src/core/crossword';
 
 const P = (text: string, tema = 't'): PhraseItem => ({ text, tema });
@@ -135,26 +135,33 @@ describe('express', () => {
 });
 
 describe('triplete', () => {
-  it('plays three boards in a round, each solver banks their money', () => {
+  it('three boards with booking: letters appear by themselves, whoever books and solves scores', () => {
     let s = game(['triplete', 'classica'], [P('UNO'), P('DUE'), P('TRE'), P('FINE')], [3, 1]);
-    s = give(s, 0, { round: 400 });
-    s = give(s, 1, { round: 700 });
+    s = { ...s, phase: 'ultimo' };
+    expect(reduce(s, { type: 'SPIN', power: 1 } as never)).toBe(s); // no wheel
+    s = reduce(s, { type: 'REVEAL', letter: 'U' });
+    expect(s.called).toEqual(['U']);
+    s = reduce(s, { type: 'BOOK', player: 1 });
+    expect(s.phase).toBe('booked');
     s = reduce(s, { type: 'SOLVE', text: 'uno' });
-    expect(s.phase).toBe('turn');
+    expect(s.players[1].total).toBe(ULTIMO_VALUE);
     expect(s.board).toBe(1);
+    expect(s.phase).toBe('ultimo'); // next board, booking again
     expect(s.called).toEqual([]);
-    expect(s.players[0]).toMatchObject({ total: 400, round: 0 });
-    expect(s.players[1].round).toBe(700); // kept for the next boards
-    expect(s.current).toBe(1);
+    s = reduce(s, { type: 'BOOK', player: 0 });
+    s = reduce(s, { type: 'SOLVE', text: 'xxx' }); // wrong: excluded from this board
+    expect(s.excluded).toEqual([0]);
+    expect(reduce(s, { type: 'BOOK', player: 0 })).toBe(s);
+    s = reduce(s, { type: 'BOOK', player: 2 });
     s = reduce(s, { type: 'SOLVE', text: 'due' });
-    expect(s.players[1].total).toBe(700);
-    s = reduce(s, { type: 'SOLVE', text: 'xxx' }); // C is next, wrong
     expect(s.board).toBe(2);
+    expect(s.excluded).toEqual([]);
+    s = reduce(s, { type: 'BOOK', player: 0 });
     s = reduce(s, { type: 'SOLVE', text: 'tre' });
     expect(s.phase).toBe('roundEnd');
     s = reduce(s, { type: 'NEXT_ROUND' });
     expect(s.board).toBe(3);
-    expect(s.players.every((p) => p.round === 0)).toBe(true);
+    expect(s.phase).toBe('turn');
   });
 });
 

@@ -22,7 +22,7 @@ export const ROUND_RULES: Record<RoundType, string> = {
   tema: 'Regole classiche, con una frase a tema.',
   express: 'Fermati su Express: entra da solo, ogni consonante vale 1000. Un errore e perdi tutto!',
   cruciruota: 'Cruciverba: scopri le lettere e scrivi tutte le parole.',
-  triplete: 'Tre frasi dello stesso tema, una dopo l’altra.',
+  triplete: 'Tre frasi dello stesso tema: le lettere si scoprono da sole, prenotati e rispondi per primo!',
   jackpot: 'Il Jackpot cresce a ogni giro: chi lo conquista e risolve lo vince.',
   ultimo: 'Le lettere si scoprono da sole: prenotati e rispondi per primo!',
 };
@@ -32,23 +32,27 @@ export interface PhraseItem { text: string; tema: string; grid?: Crossword; word
 /** A round covers `count` consecutive phrases starting at index `first` of the flat phrase list. */
 export interface RoundSpec { type: RoundType; first: number; count: number }
 
-/** 'ultimo': quick game made only of Ultimo Round (players book to answer), no final game. */
-export type Preset = 'veloce' | 'completa' | 'ultimo' | 'libera';
+/** 'triplete': quick game made only of Triplete (players book to answer), no final game. */
+export type Preset = 'veloce' | 'completa' | 'triplete' | 'libera';
+export const PRESETS: Preset[] = ['veloce', 'completa', 'triplete', 'libera'];
 
 export const PRESET_ROUNDS: Record<Exclude<Preset, 'libera'>, RoundType[]> = {
   veloce: ['classica', 'express', 'ultimo'],
   completa: ['classica', 'tema', 'express', 'cruciruota', 'ultimo'],
-  ultimo: ['ultimo', 'ultimo', 'ultimo'],
+  triplete: ['triplete', 'triplete'],
 };
 
 /** Kids mode has no Express. */
 export const PRESET_ROUNDS_KIDS: Record<Exclude<Preset, 'libera'>, RoundType[]> = {
   veloce: ['classica', 'tema', 'ultimo'],
   completa: ['classica', 'tema', 'cruciruota', 'tema', 'ultimo'],
-  ultimo: ['ultimo', 'ultimo', 'ultimo'],
+  triplete: ['triplete', 'triplete'],
 };
 
 /** Boards in a round of this type. */
+/** Rounds without the wheel: letters appear by themselves and players book to answer. */
+export const isBookingRound = (t: RoundType) => t === 'ultimo' || t === 'triplete';
+
 export const boardsIn = (t: RoundType) => (t === 'triplete' ? 3 : t === 'ultimo' ? 2 : 1);
 
 /** Wheel for a round type: base layout plus special segments. */

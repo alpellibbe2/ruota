@@ -3,7 +3,7 @@ import { Action, Config, DEFAULT_CONFIG, GameState, PLAYER_COLORS, boardNo, canB
 import { finalePhrase } from './core/finale';
 import { addCustom, buildFinale, buildGame, buildRound, presetTypes, Source } from './core/frasi';
 import { BOARD_TITLES, canGo, finaleKind, ENVELOPE_COUNT } from './core/finale';
-import { ROUND_NAMES, ROUND_RULES, ROUND_TYPES, Preset, RoundType } from './core/rounds';
+import { PRESETS, ROUND_NAMES, ROUND_RULES, ROUND_TYPES, Preset, RoundType, isBookingRound } from './core/rounds';
 import { checkSolution, checkWords, hiddenLetters } from './core/phrase';
 import { setKidsMode } from './core/frasi';
 import { tolerance } from './core/game';
@@ -43,7 +43,12 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): 
 
 function loadSettings(): Settings {
   const def: Settings = { names: ['Giocatore 1', 'Giocatore 2', 'Giocatore 3'], rounds: 3, config: DEFAULT_CONFIG };
-  try { return { ...def, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') }; } catch { return def; }
+  try {
+    const st: Settings = { ...def, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };
+    // presets saved by older versions (e.g. 'ultimo') fall back to the default
+    if (st.preset && !PRESETS.includes(st.preset)) st.preset = undefined;
+    return st;
+  } catch { return def; }
 }
 
 // ───────────────────────── setup screen ─────────────────────────
@@ -83,15 +88,15 @@ function showSetup() {
   const preset = st.preset ?? 'completa';
   const presetRow = h('div', 'row');
   presetRow.append(h('span', '', 'Partita'));
-  (['veloce', 'completa', 'ultimo', 'libera'] as Preset[]).forEach((pr) => {
-    const b = h('button', 'chip wide' + (preset === pr ? ' on' : ''), pr === 'veloce' ? 'Veloce (3)' : pr === 'completa' ? 'Completa (5)' : pr === 'ultimo' ? 'Solo prenotazione' : 'Libera');
+  PRESETS.forEach((pr) => {
+    const b = h('button', 'chip wide' + (preset === pr ? ' on' : ''), pr === 'veloce' ? 'Veloce (3)' : pr === 'completa' ? 'Completa (5)' : pr === 'triplete' ? 'Triplete veloce' : 'Libera');
     b.dataset.testid = `preset-${pr}`;
     b.onclick = () => { st.preset = pr; showSetupWith(st); };
     presetRow.append(b);
   });
   const roundsRow = h('div', 'row');
-  if (preset === 'ultimo') {
-    const info = h('span', 'preset-info', '3 manche di Ultimo Round, 6 frasi: le lettere si scoprono da sole e ci si prenota per rispondere. Senza gioco finale.');
+  if (preset === 'triplete') {
+    const info = h('span', 'preset-info', '2 manche di Triplete, 6 frasi: le lettere si scoprono da sole e ci si prenota per rispondere. Senza gioco finale.');
     info.dataset.testid = 'preset-info';
     roundsRow.append(info);
   }
@@ -175,7 +180,7 @@ function showSetup() {
     };
     btns.append(resume);
   }
-  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, kidsRow, bankRow, ...(preset === 'ultimo' ? [] : [finRow]), btns);
+  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, kidsRow, bankRow, ...(preset === 'triplete' ? [] : [finRow]), btns);
   stage.append(box);
 }
 
@@ -214,8 +219,8 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   else {
     const custom = Array.from({ length: st.rounds }, (_, i) => st.custom?.[i] ?? 'classica');
     const { phrases, rounds } = buildGame(presetTypes(st.preset ?? 'completa', custom, Math.random, !!st.config.kids), st.fonte ?? 'banca');
-    // the quick «Solo prenotazione» game has no final game
-    const finale = st.config.finale !== false && st.preset !== 'ultimo';
+    // the quick «Triplete veloce» game has no final game
+    const finale = st.config.finale !== false && st.preset !== 'triplete';
     state = newGame(st.names, phrases, st.config, rounds, finale ? buildFinale() : undefined);
     if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
   }
@@ -705,7 +710,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     const count = state.rounds[state.round].count;
     roundTag.textContent = `Manche ${state.round + 1}/${state.rounds.length} · ${ROUND_NAMES[rt]}` + (count > 1 ? ` · ${boardNo(state) + 1}/${count}` : '');
     message.textContent = state.message || (state.called.length === 0 ? ROUND_RULES[rt] : '');
-    left.classList.toggle('dim', rt === 'ultimo');
+    left.classList.toggle('dim', isBookingRound(rt));
     pendingEl.textContent = state.pending ? String(state.pending) : rt === 'jackpot' ? `💰 ${state.jackpotPot}` : '';
     pendingEl.classList.toggle('pot', !state.pending && rt === 'jackpot');
     renderPanel();

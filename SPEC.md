@@ -74,7 +74,7 @@ Le manche del programma cambiano spesso (anche per stagione). Il gioco offre un 
 | **A tema** (Ruota del Tempo, Regno animale, Musicale, Cinema, Libri, Cucina, Giramondo…) | Regole base con frase e grafica a tema. La manche musicale non riproduce musica. |
 | **Express** | 3 spicchi fucsia. Chi ci si ferma e chiama una consonante presente può "andare in Express": da quel momento gioca da solo, ogni consonante corretta vale un importo fisso (default 1.000) senza girare, le vocali si comprano. Un errore (lettera assente o soluzione sbagliata) gli fa perdere quanto accumulato nella manche e passa il turno. Può fermarsi prima di entrare in Express. |
 | **Cruciruota** (*) | Griglia stile cruciverba con 3–5 parole collegate da un tema. Le lettere si scoprono su tutta la griglia. Per risolvere basta elencare le parole. |
-| **Triplete** (*) | Tre frasi brevi collegate dallo stesso tema, giocate in sequenza nella stessa manche; il montepremi si accumula su tutte e tre. |
+| **Triplete** (*) | Tre frasi brevi collegate dallo stesso tema, giocate in sequenza **a prenotazione**: niente ruota, le lettere si scoprono da sole e chi sa la frase si prenota (+1000 se risolve; chi sbaglia è escluso da quella frase). |
 | **Round Jackpot** (*) | Uno spicchio Jackpot si carica di tutti i valori incassati nella manche; chi ci si ferma, chiama una consonante giusta e poi risolve la frase vince il jackpot. |
 | **Ultimo Round** | Manche veloce: niente ruota, le lettere si scoprono da sole una alla volta, chiunque si prenota e prova. Valore fisso (es. 1.000 punti a frase risolta). Si gioca su 2–3 frasi. |
 
@@ -97,7 +97,7 @@ Accede chi ha il totale più alto (spareggio: frase lampo in Ultimo Round).
 Preset a scelta all'avvio:
 - **Completa**: 5 manche (Classica, A tema, Express, Cruciruota o Triplete, Ultimo Round) + finale. Circa 30–40 minuti.
 - **Veloce**: 3 manche + finale. Circa 15–20 minuti.
-- **Solo prenotazione**: 3 manche di Ultimo Round (6 frasi), le lettere si scoprono da sole e ci si prenota per rispondere; senza gioco finale. Circa 10 minuti.
+- **Triplete veloce**: 2 manche di Triplete (6 frasi), le lettere si scoprono da sole e ci si prenota per rispondere; senza gioco finale. Circa 10 minuti.
 - **Personalizzata**: numero e tipo di manche, tempi, valori della ruota, costo vocale, Bancarotta totale/solo manche, Jolly on/off, finale on/off.
 
 Le impostazioni dell'ultima partita restano salvate sullo schermo.

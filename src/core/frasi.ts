@@ -153,7 +153,9 @@ export function presetTypes(preset: Preset, custom: RoundType[], rnd: () => numb
 export function buildGame(types: RoundType[], source: Source = 'banca', rnd: () => number = Math.random): { phrases: PhraseItem[]; rounds: RoundSpec[] } {
   const phrases: PhraseItem[] = [];
   const rounds: RoundSpec[] = types.map((type) => {
-    const ph = buildRound(type, source, rnd);
+    // never the same phrase twice in a game (e.g. two Triplete drawing the same set)
+    let ph = buildRound(type, source, rnd);
+    for (let i = 0; i < 8 && ph.some((p) => phrases.some((q) => q.text === p.text)); i++) ph = buildRound(type, source, rnd);
     const first = phrases.length;
     phrases.push(...ph);
     return { type, first, count: ph.length };
