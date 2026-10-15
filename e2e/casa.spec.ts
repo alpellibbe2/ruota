@@ -38,7 +38,7 @@ test('server di casa: due telefoni si collegano e giocano', async ({ browser }) 
   const code = (await host.locator('.lobby').getAttribute('data-code'))!;
 
   const phones = [await phone(browser, code, 'Anna'), await phone(browser, code, 'Bruno')];
-  await expect(host.locator('.lp:not(.cond)')).toHaveCount(2);
+  await expect(host.locator('.lp:not(.cond):not(.empty)')).toHaveCount(2);
   await host.getByTestId('lobby-start').click();
   await expect(phones[0].getByTestId('pboard')).toBeVisible({ timeout: 15000 });
 

@@ -23,3 +23,4 @@
 - I test e2e vecchi disattivano il finale con `finale-toggle`.
 - Fase 6: `config.kids` (setup: checkbox) → banca `bambini.json` (`setKidsMode`), preset senza Express, vocali gratis, Bancarotta solo manche, tolleranza 2 refusi, timer risposta 45 s, finale 1 tabellone/120 s, tastiera grande. PWA: `public/sw.js` (cache runtime + precache dei file caricati), `manifest.webmanifest`, icone generate.
 - `deploy/`: pacchetto per il mini PC (nginx + server PeerJS + coturn). `rete.json` a runtime attiva PeerJS sulla stessa origine e il TURN; `e2e/casa.spec.ts` prova un'installazione (`CASA=http://<ip>/`).
+- Lobby: «← Indietro» (testid `lobby-back`) torna alle impostazioni; `Host.closeRoom(reason)` avvisa i telefoni (messaggio `rejected`, smettono di riconnettersi) e chiude la stanza. Lista a 6 posti con posti vuoti (`.lp.empty`), contatore n/6. Test: `e2e/lobby.spec.ts`.

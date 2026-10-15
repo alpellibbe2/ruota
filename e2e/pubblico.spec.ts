@@ -16,5 +16,5 @@ test('sito pubblicato: schermo e telefono si collegano via PeerJS cloud', async 
   await ph.getByTestId('join-name').fill('Test');
   await ph.getByTestId('join-go').click();
   await expect(ph.getByTestId('lobby-me')).toHaveText('Test', { timeout: 30000 });
-  await expect(host.locator('.lp:not(.cond)')).toHaveCount(1);
+  await expect(host.locator('.lp:not(.cond):not(.empty)')).toHaveCount(1);
 });

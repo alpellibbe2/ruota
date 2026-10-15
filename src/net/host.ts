@@ -166,4 +166,12 @@ export class Host {
     clearInterval(this.watch);
     this.peer?.destroy();
   }
+
+  /** Tell every phone the room is gone (so they stop reconnecting), then close it. */
+  closeRoom(reason: string) {
+    for (const c of [...this.seats.map((s) => s.conn), this.conductor?.conn ?? null]) if (c) this.send(c, { t: 'rejected', reason });
+    this.onLobby = () => {};
+    // give the messages a moment to leave before the links go down
+    setTimeout(() => this.close(), 300);
+  }
 }

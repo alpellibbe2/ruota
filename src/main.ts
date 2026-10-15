@@ -153,7 +153,7 @@ function showSetup() {
   phones.dataset.testid = 'phones';
   phones.onclick = () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(st));
-    showLobby(stage, st, (settings, host) => startGame(settings, host));
+    void showLobby(stage, st, (settings, host) => startGame(settings, host), showSetup);
   };
   const btns = h('div', 'row');
   btns.append(start, phones);

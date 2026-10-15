@@ -32,7 +32,7 @@ test('uno schermo e tre telefoni: lobby, giri, risoluzione, riconnessione, timeo
   const names = ['Anna', 'Bruno', 'Carla'];
   const phones: Page[] = [];
   for (let i = 0; i < 3; i++) phones.push(await phone(browser, code, names[i], i));
-  await expect(host.locator('.lp:not(.cond)')).toHaveCount(3);
+  await expect(host.locator('.lp:not(.cond):not(.empty)')).toHaveCount(3);
   await host.screenshot({ path: `${SHOTS}/schermo-lobby.png` });
   await host.getByTestId('lobby-start').click();
 
