@@ -289,7 +289,12 @@ describe('finale integration', () => {
     s = reduce(s, { type: 'F_SPIN', angle: -(3 * 15 + 7) - 1440, picks: [7, 9] });
     s = reduce(s, { type: 'F_SPIN_DONE' });
     s = reduce(s, { type: 'F_START' });
+    for (const l of 'BCDA') s = reduce(s, { type: 'F_CALL', letter: l });
+    s = reduce(s, { type: 'F_GO' });
     s = reduce(s, { type: 'FORCE_SOLVE' });
+    s = reduce(s, { type: 'F_START' });
+    for (const l of 'BCDFGAO') s = reduce(s, { type: 'F_CALL', letter: l });
+    s = reduce(s, { type: 'F_GO' });
     s = reduce(s, { type: 'F_TICK', ms: 60000 });
     expect(s.finale!.stage).toBe('choose');
     s = reduce(s, { type: 'F_CHOOSE', i: 0 });

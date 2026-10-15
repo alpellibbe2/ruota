@@ -34,33 +34,67 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
   expect(new Set(s.finale.envelopes).size).toBe(3);
   await page.screenshot({ path: `${SHOTS}/finale-buste.png` });
 
-  // Board 1: classic, with RSTLNE shown
+  // Board 1: classic, with RSTLNE shown. Letters are chosen with the clock stopped.
   await page.getByTestId('fstart').click();
   s = await st(page);
+  expect(s.finale.stage).toBe('letters');
   expect(s.finale.called).toEqual([...'RSTLNE']);
-  await page.screenshot({ path: `${SHOTS}/finale-tabellone1.png` });
   await page.getByTestId('ftab-cons').click();
   await page.locator('.kb .key:not([disabled])').first().click();
   expect((await st(page)).finale.consonantsLeft).toBe(2);
+  await expect(page.getByTestId('fgo')).toBeDisabled();
+  /** Pick the remaining letters (Rubasecondi: just the vowel), check the clock is still, then VIA. */
+  const pickAndGo = async () => {
+    let f = (await st(page)).finale;
+    const t0 = f.timeLeft;
+    if (f.kinds[f.boardIdx] !== 'rubasecondi') {
+      await page.getByTestId('ftab-cons').click();
+      while ((await st(page)).finale.consonantsLeft > 0) await page.locator('.kb .key:not([disabled])').first().click();
+    }
+    await page.getByTestId('ftab-vowel').click();
+    while ((await st(page)).finale.vowelsLeft > 0) await page.locator('.kb .key:not([disabled])').first().click();
+    await page.waitForTimeout(400);
+    f = (await st(page)).finale;
+    expect(f.timeLeft).toBe(t0); // no clock while choosing
+    await page.getByTestId('fgo').click();
+    expect((await st(page)).finale.stage).toBe('board');
+  };
   const solve = async (txt?: string) => {
     const f = (await st(page)).finale;
-    await page.getByTestId('ftab-solve').click();
     await page.getByTestId('solve-input').fill(txt ?? f.phrases[f.boardIdx].text);
     await page.getByTestId('solve-ok').click();
   };
+  await pickAndGo();
+  await page.screenshot({ path: `${SHOTS}/finale-tabellone1.png` });
   await solve('sbagliato');
   expect((await st(page)).finale.won[0]).toBe(false);
   await solve();
-  expect((await st(page)).finale.boardIdx).toBe(1);
-
-  // Board 2: Testacoda, only head and tail letters
   s = await st(page);
+  expect(s.finale.stage).toBe('pause');
+  expect(s.finale.won[0]).toBe(true);
+  const kept = s.finale.timeLeft;
+  await page.waitForTimeout(600);
+  expect((await st(page)).finale.timeLeft).toBe(kept); // waiting for «PRONTO»
+  await page.screenshot({ path: `${SHOTS}/finale-pronto.png` });
+  await page.getByTestId('fstart').click();
+
+  // Board 2: Testacoda, only head and tail letters; the champion stops to save time
+  s = await st(page);
+  expect(s.finale.boardIdx).toBe(1);
   expect(s.finale.forced.length).toBeGreaterThan(2);
   expect(s.finale.called).toEqual([]);
   await page.screenshot({ path: `${SHOTS}/finale-testacoda.png` });
-  await solve();
+  await pickAndGo();
+  await page.getByTestId('fstop').click();
+  s = await st(page);
+  expect(s.finale.stage).toBe('pause');
+  expect(s.finale.won[1]).toBe(false);
+  // the solution is on the board
+  await expect(page.locator('.tile.covered')).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/finale-stop.png` });
+  await page.getByTestId('fstart').click();
 
-  // Board 3: Rubasecondi, an absent consonant costs 3 seconds
+  // Board 3: Rubasecondi, an absent consonant costs 3 seconds at VIA
   s = await st(page);
   expect(s.finale.boardIdx).toBe(2);
   const before = s.finale.timeLeft;
@@ -71,18 +105,19 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
   });
   await page.getByTestId('ftab-cons').click();
   await page.getByTestId(`key-${absent}`).click();
+  await pickAndGo();
   const after = (await st(page)).finale.timeLeft;
   expect(before - after).toBeGreaterThanOrEqual(3000);
   await page.screenshot({ path: `${SHOTS}/finale-rubasecondi.png` });
   await solve();
 
   // Choose an envelope
-  await expect(page.getByTestId('choose-1')).toBeVisible();
+  await expect(page.getByTestId('choose-1')).toBeDisabled(); // stopped: not won
   await page.screenshot({ path: `${SHOTS}/finale-scelta.png` });
-  await page.getByTestId('choose-1').click();
+  await page.getByTestId('choose-2').click();
   await expect(page.getByTestId('fend')).toBeVisible();
   s = await st(page);
-  expect(s.finale.prize).toBe(s.finale.values[s.finale.envelopes[1]]);
+  expect(s.finale.prize).toBe(s.finale.values[s.finale.envelopes[2]]);
   await page.screenshot({ path: `${SHOTS}/finale-rivelazione.png` });
   const champ = s.finale.champion;
   const total = s.players[champ].total;
@@ -107,7 +142,12 @@ test('finale: il tempo scade, la busta si sceglie tra quelle conquistate', async
   await page.getByTestId('fspin').click();
   await expect(page.getByTestId('fstart')).toBeVisible({ timeout: 10000 });
   await page.getByTestId('fstart').click();
-  await page.evaluate(() => (window as any).__ruota.dispatch({ type: 'F_TICK', ms: 60000 }));
+  await page.evaluate(() => {
+    const r = (window as any).__ruota;
+    for (const l of 'BCDA') r.dispatch({ type: 'F_CALL', letter: l });
+    r.dispatch({ type: 'F_GO' });
+    r.dispatch({ type: 'F_TICK', ms: 60000 });
+  });
   await expect(page.locator('.hint')).toContainText('Nessun premio');
   expect((await st(page)).finale.prize).toBe(0);
 });
@@ -166,17 +206,40 @@ test('finale con i telefoni: solo il campione comanda', async ({ browser }) => {
   await p1.screenshot({ path: `${SHOTS}/telefono-tifoso.png` });
   await p0.getByTestId('pspin').click();
   await expect(p0.getByTestId('pfstart')).toBeVisible({ timeout: 15000 });
+  await p0.screenshot({ path: `${SHOTS}/telefono-campione-pronto.png` });
   await p0.getByTestId('pfstart').click();
   await expect(p0.getByTestId('pftab-cons')).toBeVisible();
-  await p0.screenshot({ path: `${SHOTS}/telefono-campione-tabellone.png` });
-  await expect(p0.getByTestId('ptimer')).toContainText('⏱');
+  await p0.screenshot({ path: `${SHOTS}/telefono-campione-lettere.png` });
   // the solution is never sent to the phones
   const html = await p1.content();
   const words = (await st(host)).finale.phrases[0].text.split(' ').filter((w: string) => w.length > 4);
   for (const w of words) expect(html).not.toContain(w);
   for (let i = 0; i < 3; i++) {
-    const f = (await st(host)).finale;
-    await p0.getByTestId('pftab-solve').click();
+    if (i > 0) await p0.getByTestId('pfstart').click();
+    await expect.poll(async () => (await st(host)).finale.stage).toBe('letters');
+    let f = (await st(host)).finale;
+    if (f.kinds[i] !== 'rubasecondi') {
+      await p0.getByTestId('pftab-cons').click();
+      while ((await st(host)).finale.consonantsLeft > 0) {
+        const left = (await st(host)).finale.consonantsLeft;
+        await p0.locator('.pkb .pkey:not([disabled])').first().click();
+        await expect.poll(async () => (await st(host)).finale.consonantsLeft).toBe(left - 1);
+      }
+    }
+    await p0.getByTestId('pftab-vowel').click();
+    while ((await st(host)).finale.vowelsLeft > 0) {
+      const left = (await st(host)).finale.vowelsLeft;
+      await p0.locator('.pkb .pkey:not([disabled])').first().click();
+      await expect.poll(async () => (await st(host)).finale.vowelsLeft).toBe(left - 1);
+    }
+    await expect(p0.getByTestId('pfgo')).toBeEnabled();
+    await p0.getByTestId('pfgo').click();
+    await expect(p0.getByTestId('pfstop')).toBeVisible();
+    if (i === 0) {
+      await expect(p0.getByTestId('ptimer')).toContainText('⏱');
+      await p0.screenshot({ path: `${SHOTS}/telefono-campione-tabellone.png` });
+    }
+    f = (await st(host)).finale;
     await p0.getByTestId('psolve-input').fill(f.phrases[f.boardIdx].text);
     await p0.getByTestId('psolve-ok').click();
     await expect.poll(async () => (await st(host)).finale.won.filter(Boolean).length).toBe(i + 1);

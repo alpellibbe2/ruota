@@ -172,11 +172,14 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .left.dim .wheel { opacity: .25; filter: grayscale(.7); }
 .pending.pot { font-size: 34px; }
 .rsel { font: inherit; font-size: 26px; padding: 6px 10px; border-radius: 10px; border: 0; }
+.pbook:disabled { opacity: .35; }
+.pbook.go { flex: none; min-height: 90px; }
 .pbook { flex: 1; min-height: 240px; font: inherit; font-weight: 800; font-size: 52px; border-radius: 24px; border: 0; background: linear-gradient(180deg, #c04cff, var(--purple)); color: var(--yellow); }
 .psel { font: inherit; font-size: 18px; padding: 8px; border-radius: 10px; border: 0; flex: 1; }
 
 /* finale */
 .pending.timer { font-size: 110px; color: #fff; text-shadow: 0 4px 12px #000a; }
+.pending.timer.stopped { opacity: .55; }
 .pending.timer.low { color: #ff5252; animation: pulse 1s infinite; }
 @keyframes pulse { 50% { transform: translate(-50%, -50%) scale(1.15); } }
 .score.env { max-width: 360px; }

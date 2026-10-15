@@ -87,6 +87,9 @@ Accede chi ha il totale più alto (spareggio: frase lampo in Ultimo Round).
    - **Tabellone 1**: classico, con alcune lettere già scoperte.
    - **Tabellone 2 – Testacoda**: sono visibili solo la prima e l'ultima lettera di ogni parola.
    - **Tabellone 3 – Rubasecondi**: il campione chiama liberamente consonanti e **una sola vocale**; ogni lettera assente toglie 3 secondi.
+   - **Il cronometro scorre solo mentre il campione gioca.** Su ogni tabellone sceglie prima le lettere a tempo fermo (restano coperte); quando è pronto preme **VIA**: le lettere si scoprono e il tempo riparte. Nel Rubasecondi i 3 secondi per ogni lettera assente si tolgono al VIA.
+   - Può premere **STOP** quando vuole: il tabellone non è vinto, si vede la soluzione e i secondi rimasti restano per i tabelloni successivi.
+   - Tra un tabellone e l'altro (dopo una vittoria o uno stop) il tempo è fermo finché il campione non preme **PRONTO**.
 3. Ogni tabellone risolto conquista la busta corrispondente. Alla fine il campione **ne sceglie una** fra quelle conquistate e la apre; poi vengono rivelate anche le altre.
 
 ## 7. Configurazione partita

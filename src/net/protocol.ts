@@ -3,7 +3,7 @@
 import { maskRows } from '../core/board';
 import type { GameState, Phase } from '../core/game';
 import { canBuyVowel, currentPhrase, roundType } from '../core/game';
-import { BoardKind } from '../core/finale';
+import { BoardKind, FinaleStage, canGo } from '../core/finale';
 import type { RoundType } from '../core/rounds';
 
 export type Intent =
@@ -15,6 +15,8 @@ export type Intent =
   | { k: 'jolly'; use: boolean }
   | { k: 'book' }
   | { k: 'fstart' }
+  | { k: 'fgo' }
+  | { k: 'fstop' }
   | { k: 'fchoose'; i: number };
 
 export type ConductorIntent =
@@ -65,7 +67,7 @@ export interface PlayerView {
 }
 
 export interface FinaleView {
-  stage: 'wheel' | 'spinning' | 'drawn' | 'board' | 'choose' | 'reveal';
+  stage: FinaleStage;
   champion: number;
   kind: BoardKind;
   timeLeft: number;
@@ -74,6 +76,10 @@ export interface FinaleView {
   envelopes: number[];
   consonantsLeft: number;
   vowelsLeft: number;
+  /** Letters chosen for this board, not yet revealed. */
+  picked: string[];
+  /** «VIA» allowed. */
+  canGo: boolean;
   boardIdx: number;
   boards: number;
   prize: number;
@@ -130,7 +136,7 @@ export function buildView(s: GameState, you: number, connected: boolean[], deadl
     finale: s.finale && {
       stage: s.finale.stage, champion: s.finale.champion, kind: s.finale.kinds[s.finale.boardIdx], timeLeft: s.finale.timeLeft,
       won: s.finale.won, envelopes: s.finale.stage === 'wheel' ? [] : s.finale.envelopes.map((e) => e + 1),
-      consonantsLeft: s.finale.consonantsLeft, vowelsLeft: s.finale.vowelsLeft, boardIdx: s.finale.boardIdx, boards: s.finale.kinds.length,
+      consonantsLeft: s.finale.consonantsLeft, vowelsLeft: s.finale.vowelsLeft, picked: s.finale.picked, canGo: canGo(s.finale), boardIdx: s.finale.boardIdx, boards: s.finale.kinds.length,
       prize: s.finale.stage === 'reveal' ? s.finale.prize : 0, chosen: s.finale.chosen,
     },
   };

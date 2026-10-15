@@ -5,11 +5,23 @@ const phrases = [{ text: 'CASA DOLCE CASA', tema: 'a' }, { text: 'CHI VA PIANO',
 const setup = { phrases, values: [...ENVELOPE_VALUES] };
 const angleFor = (i: number) => -(i * 15 + 7) - 1440;
 
-const toBoard = (): FinaleState => {
+/** Board 1 with letters chosen and the clock running. */
+const go = (f: FinaleState, letters: string): FinaleState => {
+  for (const l of letters) f = finaleReduce(f, { type: 'F_CALL', letter: l });
+  return finaleReduce(f, { type: 'F_GO' });
+};
+const LETTERS = ['BCDA', 'BCDFGAO', 'E'];
+const toLetters = (): FinaleState => {
   let f = newFinale(0, setup);
   f = finaleReduce(f, { type: 'F_SPIN', angle: angleFor(5), picks: [10, 23] });
   f = finaleReduce(f, { type: 'F_SPIN_DONE' });
   return finaleReduce(f, { type: 'F_START' });
+};
+const toBoard = (): FinaleState => go(toLetters(), LETTERS[0]);
+/** Finish the current board (solved), then get ready for and start the next. */
+const nextBoard = (f: FinaleState): FinaleState => {
+  f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
+  return go(finaleReduce(f, { type: 'F_START' }), LETTERS[f.boardIdx + 1]);
 };
 
 describe('finale', () => {
@@ -20,58 +32,89 @@ describe('finale', () => {
     expect(f.envelopes).toEqual([5, 10, 23]);
     f = finaleReduce(f, { type: 'F_SPIN_DONE' });
     expect(f.stage).toBe('drawn');
-    expect(finaleReduce(f, { type: 'F_START' }).stage).toBe('board');
+    expect(finaleReduce(f, { type: 'F_START' }).stage).toBe('letters');
   });
 
-  it('board 1 pre-reveals RSTLNE and limits calls to 3 consonants and 1 vowel', () => {
-    let f = toBoard();
+  it('letters are chosen with the clock stopped and revealed only at VIA', () => {
+    let f = toLetters();
     expect(f.called).toEqual([...'RSTLNE']);
-    expect(f.timeLeft).toBe(FINALE_TIME_MS);
+    expect(finaleReduce(f, { type: 'F_TICK', ms: 5000 })).toBe(f); // no clock while choosing
     for (const l of 'BCD') f = finaleReduce(f, { type: 'F_CALL', letter: l });
-    const blocked = finaleReduce(f, { type: 'F_CALL', letter: 'F' });
-    expect(blocked).toBe(f);
+    expect(finaleReduce(f, { type: 'F_CALL', letter: 'F' })).toBe(f); // 3 consonants only
+    expect(finaleReduce(f, { type: 'F_GO' })).toBe(f); // the vowel is missing
     f = finaleReduce(f, { type: 'F_CALL', letter: 'A' });
     expect(finaleReduce(f, { type: 'F_CALL', letter: 'O' })).toBe(f);
+    expect(f.picked).toEqual([...'BCDA']);
+    expect(f.called).not.toContain('C');
+    f = finaleReduce(f, { type: 'F_GO' });
+    expect(f.stage).toBe('board');
+    expect(f.called).toContain('C');
+    expect(f.timeLeft).toBe(FINALE_TIME_MS);
+    f = finaleReduce(f, { type: 'F_TICK', ms: 5000 });
+    expect(f.timeLeft).toBe(FINALE_TIME_MS - 5000);
   });
 
-  it('a wrong solution costs nothing; a right one moves to Testacoda, which shows head and tail letters', () => {
+  it('a wrong solution costs nothing; a right one pauses the clock before Testacoda', () => {
     let f = toBoard();
     f = finaleReduce(f, { type: 'F_SOLVE', text: 'boh' });
     expect(f.stage).toBe('board');
     expect(f.won).toEqual([false, false, false]);
+    f = finaleReduce(f, { type: 'F_TICK', ms: 10000 });
     f = finaleReduce(f, { type: 'F_SOLVE', text: 'casa dolce casa' });
     expect(f.won).toEqual([true, false, false]);
+    expect(f.stage).toBe('pause');
+    expect(finaleReduce(f, { type: 'F_TICK', ms: 5000 })).toBe(f); // waiting for «PRONTO»
+    f = finaleReduce(f, { type: 'F_START' });
+    expect(f.stage).toBe('letters');
     expect(f.boardIdx).toBe(1);
     expect(f.kinds[1]).toBe('testacoda');
     expect(f.called).toEqual([]);
     expect(f.consonantsLeft).toBe(5);
-    expect(f.timeLeft).toBe(FINALE_TIME_MS); // the clock is shared and keeps its value
+    expect(f.timeLeft).toBe(FINALE_TIME_MS - 10000); // the clock is shared
     expect(headTailCells({ text: 'CHI VA', tema: '' }).length).toBe(4);
   });
 
-  it('Rubasecondi: one vowel, any consonants, 3 seconds off per missing letter', () => {
+  it('STOP: the board is not won, the solution is shown and the time left is kept', () => {
     let f = toBoard();
+    f = finaleReduce(f, { type: 'F_TICK', ms: 12000 });
+    f = finaleReduce(f, { type: 'F_STOP' });
+    expect(f.stage).toBe('pause');
+    expect(f.won).toEqual([false, false, false]);
+    expect(f.called).toEqual(expect.arrayContaining([...'CASDOLE']));
+    expect(f.timeLeft).toBe(FINALE_TIME_MS - 12000);
+    f = finaleReduce(f, { type: 'F_START' });
+    expect(f.boardIdx).toBe(1);
+    expect(f.stage).toBe('letters');
+    // stopping the last board goes to the envelopes (here: none won)
+    f = go(f, LETTERS[1]);
+    f = finaleReduce(f, { type: 'F_STOP' });
+    f = go(finaleReduce(f, { type: 'F_START' }), LETTERS[2]);
+    f = finaleReduce(f, { type: 'F_STOP' });
+    expect(f.stage).toBe('reveal');
+    expect(f.prize).toBe(0);
+  });
+
+  it('Rubasecondi: one vowel, any consonants, 3 seconds off per missing letter at VIA', () => {
+    let f = nextBoard(toBoard());
     f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
-    f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
+    f = finaleReduce(f, { type: 'F_START' });
     expect(f.boardIdx).toBe(2);
     expect(f.kinds[2]).toBe('rubasecondi');
+    const t0 = f.timeLeft;
     f = finaleReduce(f, { type: 'F_CALL', letter: 'Z' }); // not in 'UN GATTO'
-    expect(f.timeLeft).toBe(FINALE_TIME_MS - PENALTY_MS);
     f = finaleReduce(f, { type: 'F_CALL', letter: 'G' }); // present
-    expect(f.timeLeft).toBe(FINALE_TIME_MS - PENALTY_MS);
-    for (const l of 'BCDFHLMPQRSV') f = finaleReduce(f, { type: 'F_CALL', letter: l });
-    expect(f.timeLeft).toBeLessThan(FINALE_TIME_MS - PENALTY_MS);
-    f = toBoard();
-    f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
-    f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
+    expect(f.timeLeft).toBe(t0); // nothing taken until VIA
+    expect(finaleReduce(f, { type: 'F_GO' })).toBe(f); // the vowel first
     f = finaleReduce(f, { type: 'F_CALL', letter: 'E' }); // vowel absent
     expect(f.vowelsLeft).toBe(0);
     expect(finaleReduce(f, { type: 'F_CALL', letter: 'I' })).toBe(f);
+    f = finaleReduce(f, { type: 'F_GO' });
+    expect(f.stage).toBe('board');
+    expect(f.timeLeft).toBe(t0 - 2 * PENALTY_MS);
   });
 
   it('time runs out: choose among won envelopes, or nothing', () => {
-    let f = toBoard();
-    f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
+    let f = nextBoard(toBoard());
     f = finaleReduce(f, { type: 'F_TICK', ms: FINALE_TIME_MS });
     expect(f.stage).toBe('choose');
     expect(finaleReduce(f, { type: 'F_CHOOSE', i: 1 })).toBe(f); // not won
@@ -85,8 +128,8 @@ describe('finale', () => {
   });
 
   it('solving all three boards offers three envelopes', () => {
-    let f = toBoard();
-    for (let i = 0; i < 3; i++) f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
+    let f = nextBoard(nextBoard(toBoard()));
+    f = finaleReduce(f, { type: 'F_FORCE_SOLVE' });
     expect(f.stage).toBe('choose');
     expect(f.won).toEqual([true, true, true]);
   });

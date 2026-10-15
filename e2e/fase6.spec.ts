@@ -61,9 +61,13 @@ test('modalità bambini: la finale ha un solo tabellone e più tempo', async ({ 
   expect(f.kinds).toEqual(['classico']);
   expect(f.timeLeft).toBe(120000);
   await page.getByTestId('fstart').click();
+  await page.evaluate(() => {
+    const r = (window as any).__ruota;
+    for (const l of 'BCDA') r.dispatch({ type: 'F_CALL', letter: l });
+  });
+  await page.getByTestId('fgo').click();
   await page.screenshot({ path: `${SHOTS}/bambini-finale.png` });
   const ph = (await st(page)).finale.phrases[0].text;
-  await page.getByTestId('ftab-solve').click();
   await page.getByTestId('solve-input').fill(ph);
   await page.getByTestId('solve-ok').click();
   await expect(page.getByTestId('choose-0')).toBeVisible();
