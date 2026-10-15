@@ -51,7 +51,8 @@ export async function showLobby(stage: HTMLElement, st: Settings, onStart: (s: S
   const start = h('button', 'big', 'INIZIA');
   start.dataset.testid = 'lobby-start';
   start.disabled = true;
-  right.append(h('h2', '', 'Giocatori'), list, start);
+  const why = h('p', 'sub why'); why.dataset.testid = 'lobby-why';
+  right.append(h('h2', '', 'Giocatori'), list, start, why);
   box.append(h('h1', 'logo small', 'LA RUOTA'), left, right);
   box.dataset.code = code;
 
@@ -67,7 +68,9 @@ export async function showLobby(stage: HTMLElement, st: Settings, onStart: (s: S
     cond.dataset.testid = 'lobby-cond';
     list.append(cond);
     if (!host.seats.length) list.append(h('div', 'empty', 'In attesa dei giocatori…'));
-    start.disabled = host.seats.filter((s) => s.conn).length < 2;
+    const on = host.seats.filter((s) => s.conn).length;
+    start.disabled = on < 2;
+    why.textContent = on < 2 ? `Per iniziare servono almeno 2 giocatori collegati (ora ${on}).` : '';
     host.broadcastLobby();
   };
   host.onLobby = refresh;

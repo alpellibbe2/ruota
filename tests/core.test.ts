@@ -73,8 +73,9 @@ describe('game', () => {
     s = reduce(s, { type: 'CALL', letter: 'Z' });
     expect(s.current).toBe(1);
     s = spinTo(s, 0);
-    const again = reduce(s, { type: 'CALL', letter: 'Z' }); // already called: ignored
-    expect(again).toBe(s);
+    const again = reduce(s, { type: 'CALL', letter: 'Z' }); // already called: a mistake, the turn passes
+    expect(again.current).toBe((s.current + 1) % s.players.length);
+    expect(again.message).toContain('già uscita');
   });
 
   it('handles pass and bankruptcy', () => {

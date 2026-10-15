@@ -18,7 +18,7 @@ export interface Player {
 export interface Config { vowelCost: number; bankruptAll: boolean; typoTolerance: boolean; finale?: boolean; kids?: boolean }
 
 export type Phase =
-  | 'turn' | 'spinning' | 'consonant' | 'expressOffer' | 'ultimo' | 'booked' | 'roundEnd' | 'finale' | 'gameEnd';
+  | 'turn' | 'spinning' | 'consonant' | 'expressOffer' | 'jolly' | 'ultimo' | 'booked' | 'roundEnd' | 'finale' | 'gameEnd';
 
 export type GameEvent =
   | 'start' | 'spin' | 'value' | 'pass' | 'bankrupt' | 'hit' | 'miss'
@@ -52,6 +52,8 @@ export interface GameState {
   message: string;
   event: { id: number; type: GameEvent; count?: number; letter?: string };
   roundWinner: number | null;
+  /** Phase 'jolly': what the Jolly would cancel if the player decides to use it. */
+  jollyFor?: 'bankrupt' | 'miss' | null;
   /** The final game, set up at the start and played after the last round. */
   finaleSetup?: FinaleSetup;
   finale?: FinaleState;
@@ -69,6 +71,7 @@ export type Action =
   | { type: 'TIMEOUT' }
   | { type: 'NEXT_ROUND'; round?: { type: RoundType; phrases: PhraseItem[] } }
   | { type: 'EXPRESS'; go: boolean }
+  | { type: 'JOLLY'; use: boolean }
   | { type: 'REVEAL'; letter: string }
   | { type: 'BOOK'; player: number }
   // Host/conductor interventions
@@ -115,6 +118,7 @@ export function newGame(
     message: '',
     event: { id: 1, type: 'start' },
     roundWinner: null,
+    jollyFor: null,
     finaleSetup,
   };
   return { ...s, phase: startPhase(s) };
@@ -154,19 +158,27 @@ function patchCurrent(s: GameState, patch: Partial<Player>): Player[] {
   return s.players.map((p, i) => (i === s.current ? { ...p, ...patch } : p));
 }
 
-/** A mistake (missing letter, wrong solution): Express loses everything, a Jolly absorbs it. */
-function mistake(s: GameState, message: string, type: GameEvent): GameState {
-  const me = s.players[s.current];
+/** A mistake: Express loses everything; on a wrong letter the player may decide to use the Jolly. */
+function mistake(s: GameState, message: string, type: GameEvent, letter = false): GameState {
   if (s.express) {
     return passTurn({ ...s, players: patchCurrent(s, { round: 0 }) }, `${message} – Express perso!`, type);
   }
-  if (jollyActive(s, me)) {
-    return {
-      ...s, players: patchCurrent(s, { jolly: false }), phase: 'turn', landed: null, pending: 0, pendingToken: null,
-      message: `${me.name} usa il Jolly!`, event: emit(s, 'jolly'),
-    };
-  }
+  if (letter && jollyActive(s, s.players[s.current])) return offerJolly(s, 'miss', message, type);
   return passTurn(s, message, type);
+}
+
+/** Bancarotta or a wrong letter with a Jolly in hand: the player chooses whether to spend it. */
+function offerJolly(s: GameState, reason: 'bankrupt' | 'miss', message: string, type: GameEvent): GameState {
+  return {
+    ...s, phase: 'jolly', jollyFor: reason, landed: null, pending: 0, pendingToken: null,
+    message: `${message} – ${s.players[s.current].name}, usi il Jolly?`, event: emit(s, type),
+  };
+}
+
+function bankrupt(s: GameState): GameState {
+  const me = s.players[s.current];
+  const players = patchCurrent(s, { round: 0, total: s.config.bankruptAll ? 0 : me.total, premio: false, jackpot: false });
+  return passTurn({ ...s, players }, `${me.name}: Bancarotta!`, 'bankrupt');
 }
 
 function finaleEvent(s: GameState, f: FinaleState, a: FinaleAction): GameState['event'] {
@@ -255,14 +267,8 @@ export function reduce(s: GameState, a: Action): GameState {
     case 'SPIN_DONE': {
       if (s.phase !== 'spinning' || s.landed === null) return s;
       const seg = s.wheel[s.landed];
-      if (seg.kind === 'pass' || seg.kind === 'bankrupt') {
-        if (jollyActive(s, me)) {
-          return { ...s, players: patchCurrent(s, { jolly: false }), phase: 'turn', landed: null, message: `${me.name} usa il Jolly!`, event: emit(s, 'jolly') };
-        }
-        if (seg.kind === 'pass') return passTurn(s, `${me.name}: Passa!`, 'pass');
-        const players = patchCurrent(s, { round: 0, total: s.config.bankruptAll ? 0 : me.total, premio: false, jackpot: false });
-        return passTurn({ ...s, players }, `${me.name}: Bancarotta!`, 'bankrupt');
-      }
+      if (seg.kind === 'pass') return passTurn(s, `${me.name}: Passa!`, 'pass');
+      if (seg.kind === 'bankrupt') return jollyActive(s, me) ? offerJolly(s, 'bankrupt', `${me.name}: Bancarotta!`, 'bankrupt') : bankrupt(s);
       const value = seg.kind === 'express' ? EXPRESS_SEGMENT_VALUE : seg.value;
       const token = seg.kind === 'express' ? 'express' : seg.token ?? null;
       return {
@@ -273,11 +279,13 @@ export function reduce(s: GameState, a: Action): GameState {
     case 'CALL': {
       if (!(s.phase === 'consonant' || (s.phase === 'turn' && s.express))) return s;
       const L = baseLetter(a.letter);
-      if (!/^[A-Z]$/.test(L) || isVowel(L) || called.has(L)) return s;
+      if (!/^[A-Z]$/.test(L) || isVowel(L)) return s;
+      // called letters are not shown to the players: calling one again is a mistake
+      if (called.has(L)) return mistake(s, `La ${L} è già uscita`, 'miss', true);
       called.add(L);
       const n = occurrences(phrase, L);
       const base = { ...s, called: [...called] };
-      if (n === 0) return mistake(base, `Nessuna ${L}`, 'miss');
+      if (n === 0) return mistake(base, `Nessuna ${L}`, 'miss', true);
       const gain = n * s.pending;
       let players = patchCurrent(base, { round: me.round + gain });
       let event = emit(s, 'hit', { count: n, letter: L });
@@ -302,6 +310,12 @@ export function reduce(s: GameState, a: Action): GameState {
       if (!a.go) return { ...s, phase: 'turn', message: `${me.name} si ferma`, event: emit(s, 'value') };
       return { ...s, phase: 'turn', express: true, pending: EXPRESS_VALUE, message: `${me.name} va in EXPRESS!`, event: emit(s, 'express') };
     }
+    case 'JOLLY': {
+      if (s.phase !== 'jolly') return s;
+      const base: GameState = { ...s, jollyFor: null };
+      if (a.use) return { ...base, players: patchCurrent(s, { jolly: false }), phase: 'turn', message: `${me.name} usa il Jolly!`, event: emit(s, 'jolly') };
+      return s.jollyFor === 'bankrupt' ? bankrupt(base) : passTurn(base, `${me.name} tiene il Jolly`, 'pass');
+    }
     case 'BUY_VOWEL': {
       if (!canBuyVowel(s)) return s;
       const L = baseLetter(a.letter);
@@ -309,7 +323,7 @@ export function reduce(s: GameState, a: Action): GameState {
       called.add(L);
       const n = occurrences(phrase, L);
       const base = { ...s, called: [...called], players: patchCurrent(s, { round: me.round - s.config.vowelCost }) };
-      if (n === 0) return mistake(base, `Nessuna ${L}`, 'miss');
+      if (n === 0) return mistake(base, `Nessuna ${L}`, 'miss', true);
       const next: GameState = { ...base, message: `${n} × ${L}`, event: emit(s, 'vowel', { count: n, letter: L }) };
       return isFullyRevealed(phrase.text, called) ? winBoard(next, `${me.name} completa il tabellone!`) : next;
     }
@@ -328,6 +342,7 @@ export function reduce(s: GameState, a: Action): GameState {
     case 'TIMEOUT': {
       if (s.phase === 'booked') return ultimoFail(s);
       if (s.phase === 'expressOffer') return reduce(s, { type: 'EXPRESS', go: false });
+      if (s.phase === 'jolly') return reduce(s, { type: 'JOLLY', use: false });
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
       return mistake({ ...s, players: s.players }, 'Tempo scaduto', 'miss');
     }
@@ -362,7 +377,8 @@ export function reduce(s: GameState, a: Action): GameState {
     }
     case 'FORCE_PASS': {
       if (s.phase === 'booked') return ultimoFail(s);
-      if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
+      if (s.phase === 'jolly') return reduce(s, { type: 'JOLLY', use: false });
+      if (s.phase !== 'turn' && s.phase !== 'consonant' && s.phase !== 'expressOffer') return s;
       return passTurn(s, 'Turno passato dal conduttore', 'pass');
     }
     case 'ADJUST': {
@@ -372,9 +388,9 @@ export function reduce(s: GameState, a: Action): GameState {
       return { ...s, players, message: `${p.name}: ${a.delta >= 0 ? '+' : ''}${a.delta}` };
     }
     case 'SKIP': {
-      if (!['turn', 'consonant', 'ultimo'].includes(s.phase)) return s;
+      if (!['turn', 'consonant', 'ultimo', 'jolly', 'expressOffer'].includes(s.phase)) return s;
       const phrases = s.phrases.map((x, i) => (i === s.board ? a.phrase : x));
-      return { ...s, phrases, called: [], phase: startPhase(s), landed: null, pending: 0, pendingToken: null, express: false, excluded: [], message: 'Nuova frase', event: emit(s, 'start') };
+      return { ...s, phrases, jollyFor: null, called: [], phase: startPhase(s), landed: null, pending: 0, pendingToken: null, express: false, excluded: [], message: 'Nuova frase', event: emit(s, 'start') };
     }
     case 'NEXT_ROUND': {
       if (s.phase !== 'roundEnd') return s;

@@ -2,7 +2,7 @@
 
 import { PLAYER_COLORS } from '../core/game';
 import Peer, { DataConnection } from 'peerjs';
-import { ConductorIntent, ConductorView, LobbyPlayer, Intent, PlayerView, ROOM_PREFIX, ToClient, ToHost, peerOptions, roomCode } from './protocol';
+import { ConductorIntent, ConductorView, LobbyPlayer, Intent, PING_MS, PlayerView, ROOM_PREFIX, STALE_MS, ToClient, ToHost, peerOptions, roomCode } from './protocol';
 
 interface Seat { token: string; name: string; color: string; conn: DataConnection | null }
 
@@ -17,18 +17,27 @@ export class Host {
   conductor: { token: string; conn: DataConnection | null } | null = null;
   started = false;
   private peer: Peer | null = null;
+  private watch = 0;
+  /** Last message received on each open connection. */
+  private seen = new Map<DataConnection, number>();
 
   open(preferred?: string): Promise<string> {
     const tryOpen = (code: string, attempt: number): Promise<string> =>
       new Promise((resolve, reject) => {
         const peer = new Peer(ROOM_PREFIX + code, peerOptions());
         peer.on('open', () => {
+          if (this.peer === peer) return; // back on the signalling server after a drop
           this.peer = peer;
           this.code = code;
           peer.on('connection', (c) => this.accept(c));
+          this.startWatch();
           resolve(code);
         });
         peer.on('error', (err: { type?: string }) => {
+          // Once the room is open, errors are about the signalling server (the PeerJS cloud drops its
+          // websocket now and then): the phones' direct links still work, so never destroy the peer —
+          // destroying it closed every phone at once. The watchdog re-registers the room.
+          if (this.peer === peer) return;
           peer.destroy();
           if (err.type === 'unavailable-id' && attempt < 8) {
             // taken (or our own previous session still lingering): retry with a fresh code unless restoring
@@ -40,9 +49,38 @@ export class Host {
     return tryOpen(preferred ?? roomCode(), 0);
   }
 
+  /** Keep the room registered on the signalling server, ping the phones and drop silent links. */
+  private startWatch() {
+    clearInterval(this.watch);
+    this.watch = window.setInterval(() => {
+      const peer = this.peer;
+      if (peer && peer.disconnected && !peer.destroyed) {
+        try { peer.reconnect(); } catch { /* retry on the next tick */ }
+      }
+      const now = Date.now();
+      const links = [...this.seats.map((x) => x.conn), this.conductor?.conn ?? null];
+      for (const c of links) {
+        if (!c) continue;
+        if (now - (this.seen.get(c) ?? now) > STALE_MS) this.drop(c);
+        else this.send(c, { t: 'ping' });
+      }
+    }, PING_MS);
+  }
+
+  private drop(conn: DataConnection) {
+    this.seen.delete(conn);
+    try { conn.close(); } catch { /* already closed */ }
+    if (this.conductor?.conn === conn) { this.conductor.conn = null; this.onLobby(); return; }
+    const seat = this.seats.find((s) => s.conn === conn);
+    if (seat) { seat.conn = null; this.onLobby(); }
+  }
+
   private accept(conn: DataConnection) {
+    this.seen.set(conn, Date.now());
     conn.on('data', (raw) => {
+      this.seen.set(conn, Date.now());
       const m = raw as ToHost;
+      if (m.t === 'ping') return;
       if (m.t === 'join' && m.role === 'conductor') this.joinConductor(conn, m.token);
       else if (m.t === 'join') this.join(conn, m);
       else if (m.t === 'cintent') { if (this.conductor?.conn === conn) this.onConductor(m.i); }
@@ -51,11 +89,8 @@ export class Host {
         if (seat >= 0) this.onIntent(seat, m.i);
       }
     });
-    conn.on('close', () => {
-      if (this.conductor?.conn === conn) { this.conductor.conn = null; this.onLobby(); return; }
-      const seat = this.seats.find((s) => s.conn === conn);
-      if (seat) { seat.conn = null; this.onLobby(); }
-    });
+    conn.on('close', () => this.drop(conn));
+    conn.on('error', () => this.drop(conn));
   }
 
   private joinConductor(conn: DataConnection, token: string) {
@@ -117,7 +152,9 @@ export class Host {
   }
 
   private send(conn: DataConnection, m: ToClient) {
-    if (conn.open) conn.send(m);
+    try {
+      if (conn.open) conn.send(m);
+    } catch { /* channel closing: the watchdog will drop it */ }
   }
 
   /** Restore seats from a saved session (phones will rejoin with their tokens). */
@@ -126,6 +163,7 @@ export class Host {
   }
 
   close() {
+    clearInterval(this.watch);
     this.peer?.destroy();
   }
 }

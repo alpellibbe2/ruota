@@ -12,6 +12,7 @@ export type Intent =
   | { k: 'vowel'; l: string }
   | { k: 'solve'; text: string }
   | { k: 'express'; go: boolean }
+  | { k: 'jolly'; use: boolean }
   | { k: 'book' }
   | { k: 'fstart' }
   | { k: 'fchoose'; i: number };
@@ -28,7 +29,8 @@ export type ConductorIntent =
 export type ToHost =
   | { t: 'join'; name: string; color: string; token: string; role?: 'conductor' }
   | { t: 'intent'; i: Intent }
-  | { t: 'cintent'; i: ConductorIntent };
+  | { t: 'cintent'; i: ConductorIntent }
+  | { t: 'ping' };
 
 export interface LobbyPlayer { name: string; color: string; connected: boolean }
 
@@ -92,7 +94,12 @@ export type ToClient =
   | { t: 'cview'; v: ConductorView }
   | { t: 'lobby'; players: LobbyPlayer[]; you: number }
   | { t: 'view'; v: PlayerView }
-  | { t: 'rejected'; reason: string };
+  | { t: 'rejected'; reason: string }
+  | { t: 'ping' };
+
+/** Both sides send a ping this often; a link silent for STALE_MS is considered dead. */
+export const PING_MS = 4000;
+export const STALE_MS = 15000;
 
 export function buildView(s: GameState, you: number, connected: boolean[], deadline = 0): PlayerView {
   const ph = currentPhrase(s);

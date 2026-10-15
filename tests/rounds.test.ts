@@ -28,13 +28,16 @@ describe('wheel layouts', () => {
 });
 
 describe('jolly and premio', () => {
-  it('conquering a jolly, then it absorbs a bankruptcy once', () => {
+  it('conquering a jolly: on bankruptcy the player chooses to use it', () => {
     let s = game(['classica'], [P('CASA DOLCE CASA')]);
     s = spinTo(s, idxOf(s, (x) => x.kind === 'value' && x.token === 'jolly'));
     s = reduce(s, { type: 'CALL', letter: 'C' });
     expect(s.players[0].jolly).toBe(true);
     s = give(s, 0, { round: 900, total: 1000 });
     s = spinTo(s, idxOf(s, (x) => x.kind === 'bankrupt'));
+    expect(s.phase).toBe('jolly');
+    expect(reduce(s, { type: 'SPIN', angle: 0 })).toBe(s);
+    s = reduce(s, { type: 'JOLLY', use: true });
     expect(s.players[0]).toMatchObject({ jolly: false, round: 900, total: 1000 });
     expect(s.current).toBe(0);
     expect(s.phase).toBe('turn');
@@ -42,17 +45,31 @@ describe('jolly and premio', () => {
     expect(s.players[0]).toMatchObject({ round: 0, total: 0 });
     expect(s.current).toBe(1);
   });
-  it('jolly also absorbs a missing consonant and a wrong solution, but not after round 3', () => {
+  it('declining the jolly on bankruptcy keeps it but applies the bankruptcy', () => {
+    let s = give(game(['classica'], [P('CASA')]), 0, { jolly: true, round: 900, total: 1000 });
+    s = reduce(spinTo(s, idxOf(s, (x) => x.kind === 'bankrupt')), { type: 'JOLLY', use: false });
+    expect(s.players[0]).toMatchObject({ jolly: true, round: 0, total: 0 });
+    expect(s.current).toBe(1);
+  });
+  it('jolly is offered on a wrong or repeated letter, not on Passa, wrong solution, timeout or after round 3', () => {
     let s = give(game(['classica'], [P('CASA')]), 0, { jolly: true });
     s = reduce(spinTo(s, 0), { type: 'CALL', letter: 'Z' });
+    expect(s.phase).toBe('jolly');
+    s = reduce(s, { type: 'JOLLY', use: true });
     expect(s.current).toBe(0);
     expect(s.players[0].jolly).toBe(false);
     s = give(s, 0, { jolly: true });
-    s = reduce(s, { type: 'SOLVE', text: 'sbagliato' });
-    expect(s.current).toBe(0);
-    expect(s.players[0].jolly).toBe(false);
+    s = reduce(spinTo(s, 0), { type: 'CALL', letter: 'Z' }); // repeated
+    expect(s.phase).toBe('jolly');
+    s = reduce(s, { type: 'TIMEOUT' }); // no answer: keeps the jolly, loses the turn
+    expect(s.current).toBe(1);
+    expect(s.players[0].jolly).toBe(true);
+    const j = give(game(['classica'], [P('CASA')]), 0, { jolly: true });
+    expect(reduce(j, { type: 'SOLVE', text: 'sbagliato' }).current).toBe(1);
+    expect(reduce(j, { type: 'TIMEOUT' }).current).toBe(1);
+    expect(spinTo(j, idxOf(j, (x) => x.kind === 'pass')).current).toBe(1);
     const late = give({ ...game(['classica', 'classica', 'classica', 'classica'], [P('A'), P('B'), P('C'), P('CASA')]), round: 3, board: 3 }, 0, { jolly: true });
-    expect(reduce(late, { type: 'SOLVE', text: 'x' }).current).toBe(1);
+    expect(reduce(spinTo(late, 0), { type: 'CALL', letter: 'Z' }).current).toBe(1);
   });
   it('premio gives a bonus only to the round winner and is lost on bankruptcy', () => {
     let s = game(['classica'], [P('CASA')]);

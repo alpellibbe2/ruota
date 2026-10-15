@@ -4,6 +4,8 @@
 - **Fasi 1–5 COMPLETATE**. **Fase 6** (bambini, banca frasi 355+120, PWA offline, rifiniture): codice e test verdi (vitest 48 + e2e 17). Deploy ok, smoke test pubblico ok. **Tutte le fasi completate.**
 - Sito: https://alpellibbe2.github.io/ruota/ (GitHub Pages, deploy a ogni push). Server di casa (`deploy/`) disponibile come alternativa, non in uso.
 
+- 2026-10-15: richieste dopo la prima prova (tempo 60 s, conduttore decide il tempo, consonanti uscite non segnate, Jolly a scelta, motivi dei blocchi, fix disconnessioni). Vedi DECISIONI.md. vitest 49 + e2e 20 verdi.
+
 ## Struttura
 - `src/core/` logica pura (phrase, wheel, game reducer, frasi). Test in `tests/`.
 - `src/ui/` rendering (ruota canvas, tabellone DOM, audio WebAudio, css). `src/main.ts` controller.

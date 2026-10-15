@@ -17,6 +17,7 @@ import { Host } from './net/host';
 import { buildConductorView, buildView, ConductorIntent, loadRete } from './net/protocol';
 import { showLobby } from './ui/lobby';
 import { startPhone } from './ui/phone';
+import { keepAwake } from './ui/wakelock';
 
 const SETTINGS_KEY = 'ruota.impostazioni';
 const TEST = new URLSearchParams(location.search).has('test');
@@ -182,6 +183,14 @@ function loadSession(): Session | null {
   } catch { return null; }
 }
 
+/** Why the vowel button is off, or '' when it is on. */
+export function vowelBlocked(s: GameState): string {
+  if (canBuyVowel(s)) return '';
+  if (s.phase !== 'turn') return '';
+  if (!hiddenLetters(currentPhrase(s).text, new Set(s.called), true).length) return 'Vocali: sono già uscite tutte';
+  return `Vocale: servono almeno ${s.config.vowelCost} punti nella manche`;
+}
+
 function showSetupWith(st: Settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(st));
   showSetup();
@@ -191,7 +200,7 @@ function showSetupWith(st: Settings) {
 const ANSWER_PARAM = Number(new URLSearchParams(location.search).get('t'));
 
 export function startGame(st: Settings, host?: Host, resume?: GameState) {
-  const ANSWER_MS = ANSWER_PARAM || (st.config.kids ? 45000 : 15000);
+  const ANSWER_MS = ANSWER_PARAM || (st.config.kids ? 90000 : 60000);
   setKidsMode(!!st.config.kids);
   let state: GameState;
   if (resume) state = resume;
@@ -201,7 +210,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     state = newGame(st.names, phrases, st.config, rounds, st.config.finale === false ? undefined : buildFinale());
     if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
   }
-  if (host) host.started = true;
+  if (host) { host.started = true; keepAwake(); }
   let deadline = 0;
   let timer = 0;
   let review: { player: number; text: string } | null = null;
@@ -305,7 +314,8 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     if (!host) return;
     clearTimeout(timer);
     deadline = 0;
-    if (['turn', 'consonant', 'expressOffer', 'booked'].includes(state.phase)) {
+    // With a human conductor there is no clock: they decide when time is up and pass the turn.
+    if (!host.hasConductor() && ['turn', 'consonant', 'expressOffer', 'jolly', 'booked'].includes(state.phase)) {
       deadline = Date.now() + ANSWER_MS;
       timer = window.setTimeout(() => dispatch({ type: 'TIMEOUT' }), ANSWER_MS);
     }
@@ -351,6 +361,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         return;
       }
       if (i.k === 'express') dispatch({ type: 'EXPRESS', go: !!i.go });
+      else if (i.k === 'jolly') dispatch({ type: 'JOLLY', use: !!i.use });
       else if (i.k === 'spin') void spin(Math.min(1, Math.max(0.2, Number(i.power) || 0.5)));
       else if (i.k === 'call') dispatch({ type: 'CALL', letter: String(i.l) });
       else if (i.k === 'vowel') dispatch({ type: 'BUY_VOWEL', letter: String(i.l) });
@@ -426,6 +437,22 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     sfx.spin();
     await wheel.spinTo(angle, (3500 + power * 2500) * SPEED);
     dispatch({ type: 'SPIN_DONE' });
+  }
+
+  /** Called consonants are not shown: players must remember them (calling one again is a mistake). */
+  const NONE = new Set<string>();
+
+  let clockTimer = 0;
+  /** Answer countdown on the big screen (phones mode, no conductor). */
+  function showClock(el: HTMLElement) {
+    clearInterval(clockTimer);
+    const upd = () => {
+      if (!el.isConnected) { clearInterval(clockTimer); return; }
+      el.textContent = deadline ? `⏱ ${Math.max(0, Math.ceil((deadline - Date.now()) / 1000))} s`
+        : host?.hasConductor() && ['turn', 'consonant', 'expressOffer', 'jolly', 'booked'].includes(state.phase) ? 'Tempo: decide il conduttore' : '';
+    };
+    upd();
+    clockTimer = window.setInterval(upd, 500);
   }
 
   function keyboard(letters: string, disabled: Set<string>, onPick: (l: string) => void) {
@@ -523,9 +550,13 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         : state.phase === 'ultimo' ? 'Prenotati sul telefono!'
         : state.phase === 'booked' ? `${me.name} risponde…`
         : state.phase === 'expressOffer' ? `${me.name}: Express?`
+        : state.phase === 'jolly' ? `${me.name}: usi il Jolly?`
         : `Tocca a ${me.name}`;
       panel.append(h('div', 'hint big-hint', t));
       if (state.phase !== 'ultimo') panel.append(h('div', 'hint sm', 'Usa il tuo telefono per giocare'));
+      const clock = h('div', 'hint sm clock'); clock.dataset.testid = 'clock';
+      panel.append(clock);
+      showClock(clock);
     } else if (state.phase === 'spinning') {
       panel.append(h('div', 'hint', 'La ruota gira…'));
     } else if (state.phase === 'ultimo') {
@@ -550,9 +581,18 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       no.onclick = () => dispatch({ type: 'EXPRESS', go: false });
       row.append(go, no);
       panel.append(row);
+    } else if (state.phase === 'jolly') {
+      panel.append(h('div', 'hint', `${state.message}`));
+      const row = h('div', 'actions');
+      const use = h('button', 'act spin', 'USA IL JOLLY'); use.dataset.testid = 'jolly-use';
+      use.onclick = () => dispatch({ type: 'JOLLY', use: true });
+      const keep = h('button', 'act', 'NO, LO TENGO'); keep.dataset.testid = 'jolly-keep';
+      keep.onclick = () => dispatch({ type: 'JOLLY', use: false });
+      row.append(use, keep);
+      panel.append(row);
     } else if (state.phase === 'consonant') {
       panel.append(h('div', 'hint', `Scegli una consonante – ${state.pending} a lettera`));
-      panel.append(keyboard(CONSONANTS, called, (l) => dispatch({ type: 'CALL', letter: l })));
+      panel.append(keyboard(CONSONANTS, NONE, (l) => dispatch({ type: 'CALL', letter: l })));
     } else if (state.phase === 'turn') {
       if (mode === 'menu') {
         const row = h('div', 'actions');
@@ -572,9 +612,11 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         sol.onclick = () => { mode = 'solve'; renderPanel(); };
         row.append(vow, sol);
         panel.append(h('div', 'hint', state.express ? `${me.name} è in EXPRESS!` : `Tocca a ${me.name}`), row);
+        const why = vowelBlocked(state);
+        if (why) panel.append(h('div', 'hint sm', why));
       } else if (mode === 'cons') {
         panel.append(h('div', 'hint', `Consonante – ${state.pending} a lettera`));
-        panel.append(keyboard(CONSONANTS, called, (l) => dispatch({ type: 'CALL', letter: l })));
+        panel.append(keyboard(CONSONANTS, NONE, (l) => dispatch({ type: 'CALL', letter: l })));
         const back = h('button', 'act small', 'Indietro'); back.onclick = menuBack;
         panel.append(back);
       } else if (mode === 'vowel') {
@@ -697,6 +739,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     dispatch,
     /** Land the wheel on segment `idx` without animation. */
     fin: () => state.finale,
+    host,
     force: (idx: number) => {
       dispatch({ type: 'SPIN', angle: -(idx * 15 + 7) - 1440 });
       dispatch({ type: 'SPIN_DONE' });

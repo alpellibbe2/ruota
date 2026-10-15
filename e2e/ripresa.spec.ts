@@ -34,7 +34,8 @@ test('lo schermo si ricarica a metà partita: la partita riprende e i telefoni r
   await host.reload();
   await expect(host.getByTestId('resume')).toBeVisible();
   await host.getByTestId('resume').click();
-  await expect.poll(async () => (await st(host)).players[0].round, { timeout: 20000 }).toBe(700);
+  // the game object exists only once the room is open again
+  await expect.poll(() => host.evaluate(() => (window as any).__ruota?.state().players[0].round), { timeout: 20000 }).toBe(700);
   const after = await st(host);
   expect(after.phrases[after.board].text).toBe(before.phrases[before.board].text);
   expect(after.current).toBe(before.current);

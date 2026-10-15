@@ -5,6 +5,7 @@ import { CONSONANTS, VOWELS } from '../core/phrase';
 import { ROUND_NAMES, RoundType } from '../core/rounds';
 import { Client } from '../net/client';
 import { ConductorView, PlayerView, ToClient } from '../net/protocol';
+import { keepAwake } from './wakelock';
 
 const PROFILE_KEY = 'ruota.profilo';
 
@@ -73,8 +74,10 @@ export function startPhone(body: HTMLElement, code: string) {
   let lastEvent = 0;
   let tick = 0;
   let fmode: 'cons' | 'vowel' | 'solve' = 'cons';
+  let draft = '';
 
   function connect() {
+    keepAwake();
     root.textContent = '';
     root.append(h('p', 'pstatus', 'Collegamento…'));
     client = new Client(code, { t: 'join', name: profile.name, color: profile.color, token: profile.token, ...(asConductor ? { role: 'conductor' as const } : {}) });
@@ -98,9 +101,11 @@ export function startPhone(body: HTMLElement, code: string) {
         const chip = h('div', 'pchip', me?.name ?? '');
         chip.style.background = me?.color ?? '#999';
         chip.dataset.testid = 'lobby-me';
-        root.append(chip, h('p', 'psub', `${m.players.length} giocatori collegati`));
+        const on = m.players.filter((p) => p.connected).length;
+        root.append(chip, h('p', 'psub', on < 2 ? `${on} giocatore collegato: per iniziare ne servono almeno 2` : `${on} giocatori collegati`));
       } else if (m.t === 'view') {
         if (m.v.current !== lastCurrent || m.v.phase !== 'turn') mode = 'menu';
+        if (m.v.current !== lastCurrent || m.v.round !== view?.round || m.v.boardNo !== view?.boardNo) draft = '';
         if (m.v.current === m.v.you && lastCurrent !== m.v.you) navigator.vibrate?.(200);
         if (m.v.eventId !== lastEvent && m.v.message.includes('Bancarotta')) navigator.vibrate?.([100, 60, 300]);
         if (m.v.finale?.stage === 'board') m.v.deadline = Date.now() + m.v.finale.timeLeft;
@@ -139,10 +144,12 @@ export function startPhone(body: HTMLElement, code: string) {
       const b = h('button', 'pbtn small', label); b.dataset.testid = tid; b.disabled = dis; b.onclick = () => send(i); acts.append(b);
     };
     const live = v.phase === 'turn' || v.phase === 'consonant' || v.phase === 'booked' || (v.phase === 'finale' && v.finale?.stage === 'board');
+    const passable = live || v.phase === 'expressOffer' || v.phase === 'jolly';
     mk('Accetta risposta a voce', 'c-voice', { k: 'accept' }, !live);
-    mk('Passa turno', 'c-pass', { k: 'pass' }, !live);
-    mk('Salta frase', 'c-skip', { k: 'skip' }, !live);
+    mk('Passa turno', 'c-pass', { k: 'pass' }, !passable || v.phase === 'finale');
+    mk('Salta frase', 'c-skip', { k: 'skip' }, !passable);
     root.append(acts);
+    if (passable && v.phase !== 'finale') root.append(h('div', 'phint', 'Il tempo lo decidi tu: quando è scaduto premi «Passa turno»'));
     const nextRow = h('div', 'prowbtn');
     const sel = h('select', 'psel'); sel.dataset.testid = 'c-next-type';
     const auto = h('option', '', 'Manche: automatica'); auto.value = ''; sel.append(auto);
@@ -151,6 +158,7 @@ export function startPhone(body: HTMLElement, code: string) {
     nb.onclick = () => send(sel.value ? { k: 'next', type: sel.value as RoundType } : { k: 'next' });
     nextRow.append(sel, nb);
     root.append(nextRow);
+    if (v.phase !== 'roundEnd') root.append(h('div', 'phint', '«Prossima manche» si attiva quando la frase è risolta'));
     const sc = h('div', 'cscores');
     v.players.forEach((p, i) => {
       const r = h('div', 'crow');
@@ -211,10 +219,11 @@ export function startPhone(body: HTMLElement, code: string) {
     const ctrl = h('div', 'pctrl');
     root.append(ctrl);
     const called = new Set(v.called);
-    const kb = (letters: string, f: (l: string) => void) => {
+    // called consonants are not shown (calling one again is a mistake); vowels already bought are
+    const kb = (letters: string, f: (l: string) => void, hide = called) => {
       const k = h('div', 'pkb');
       for (const l of letters) {
-        const b = h('button', 'pkey', l); b.disabled = called.has(l); b.dataset.testid = `pkey-${l}`;
+        const b = h('button', 'pkey', l); b.disabled = hide.has(l); b.dataset.testid = `pkey-${l}`;
         b.onclick = () => f(l);
         k.append(b);
       }
@@ -224,11 +233,14 @@ export function startPhone(body: HTMLElement, code: string) {
     const solveForm = () => {
       const inp = h('input', 'psolve-in'); inp.placeholder = v.roundType === 'cruciruota' ? 'Scrivi tutte le parole' : 'Scrivi la frase'; inp.dataset.testid = 'psolve-input';
       inp.autocapitalize = 'characters';
+      // the view is rebuilt on every update (someone reconnecting, a letter…): keep what was typed
+      inp.value = draft;
+      inp.oninput = () => { draft = inp.value; };
       const ok = h('button', 'pbtn', 'CONFERMA'); ok.dataset.testid = 'psolve-ok';
-      ok.onclick = () => client?.send({ k: 'solve', text: inp.value });
+      ok.onclick = () => { client?.send({ k: 'solve', text: inp.value }); draft = ''; };
       inp.onkeydown = (e) => { if (e.key === 'Enter') ok.click(); };
       ctrl.append(inp, ok);
-      setTimeout(() => inp.focus(), 0);
+      setTimeout(() => { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 0);
     };
     const back = () => { const b = h('button', 'pbtn small', 'Indietro'); b.onclick = () => { mode = 'menu'; render(); }; return b; };
 
@@ -297,6 +309,12 @@ export function startPhone(body: HTMLElement, code: string) {
       ctrl.append(h('div', 'pbigmsg', v.phase === 'spinning' ? 'La ruota gira…' : `Tocca a ${turnName}`));
     } else if (v.phase === 'spinning') {
       ctrl.append(h('div', 'pbigmsg', 'La ruota gira…'));
+    } else if (v.phase === 'jolly') {
+      const use = h('button', 'pbtn', 'USA IL JOLLY'); use.dataset.testid = 'pjolly-use';
+      use.onclick = () => client?.send({ k: 'jolly', use: true });
+      const keep = h('button', 'pbtn', 'NO, LO TENGO'); keep.dataset.testid = 'pjolly-keep';
+      keep.onclick = () => client?.send({ k: 'jolly', use: false });
+      ctrl.append(h('div', 'phint', 'Con il Jolly non perdi nulla e continui a giocare. Se lo tieni, lo puoi usare più avanti.'), use, keep);
     } else if (v.phase === 'expressOffer') {
       const go = h('button', 'pbtn', 'ENTRA IN EXPRESS'); go.dataset.testid = 'pexpress-go';
       go.onclick = () => client?.send({ k: 'express', go: true });
@@ -304,7 +322,7 @@ export function startPhone(body: HTMLElement, code: string) {
       no.onclick = () => client?.send({ k: 'express', go: false });
       ctrl.append(h('div', 'phint', 'Express: ogni consonante vale 1000, ma un errore azzera tutto!'), go, no);
     } else if (v.phase === 'consonant' || (v.express && mode === 'cons')) {
-      ctrl.append(h('div', 'phint', `Scegli una consonante (${v.pending})`), kb(CONSONANTS, (l) => client?.send({ k: 'call', l })));
+      ctrl.append(h('div', 'phint', `Scegli una consonante (${v.pending})`), kb(CONSONANTS, (l) => client?.send({ k: 'call', l }), new Set()));
       if (v.phase !== 'consonant') ctrl.append(back());
     } else if (mode === 'menu') {
       const row = h('div', 'prowbtn');
@@ -333,6 +351,7 @@ export function startPhone(body: HTMLElement, code: string) {
         tap.onclick = () => client?.send({ k: 'spin', power: 0.3 + Math.random() * 0.7 });
         ctrl.append(pad, tap, row);
       }
+      if (!v.canVowel && v.vowelCost) ctrl.append(h('div', 'phint', me.round < v.vowelCost ? `Vocale: servono almeno ${v.vowelCost} punti nella manche` : 'Vocali: sono già uscite tutte'));
     } else if (mode === 'vowel') {
       ctrl.append(h('div', 'phint', 'Scegli una vocale'), kb(VOWELS, (l) => client?.send({ k: 'vowel', l })), back());
     } else {
