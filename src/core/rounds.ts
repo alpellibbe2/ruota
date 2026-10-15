@@ -32,17 +32,20 @@ export interface PhraseItem { text: string; tema: string; grid?: Crossword; word
 /** A round covers `count` consecutive phrases starting at index `first` of the flat phrase list. */
 export interface RoundSpec { type: RoundType; first: number; count: number }
 
-export type Preset = 'veloce' | 'completa' | 'libera';
+/** 'ultimo': quick game made only of Ultimo Round (players book to answer), no final game. */
+export type Preset = 'veloce' | 'completa' | 'ultimo' | 'libera';
 
 export const PRESET_ROUNDS: Record<Exclude<Preset, 'libera'>, RoundType[]> = {
   veloce: ['classica', 'express', 'ultimo'],
   completa: ['classica', 'tema', 'express', 'cruciruota', 'ultimo'],
+  ultimo: ['ultimo', 'ultimo', 'ultimo'],
 };
 
 /** Kids mode has no Express. */
 export const PRESET_ROUNDS_KIDS: Record<Exclude<Preset, 'libera'>, RoundType[]> = {
   veloce: ['classica', 'tema', 'ultimo'],
   completa: ['classica', 'tema', 'cruciruota', 'tema', 'ultimo'],
+  ultimo: ['ultimo', 'ultimo', 'ultimo'],
 };
 
 /** Boards in a round of this type. */

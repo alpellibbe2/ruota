@@ -83,13 +83,18 @@ function showSetup() {
   const preset = st.preset ?? 'completa';
   const presetRow = h('div', 'row');
   presetRow.append(h('span', '', 'Partita'));
-  (['veloce', 'completa', 'libera'] as Preset[]).forEach((pr) => {
-    const b = h('button', 'chip wide' + (preset === pr ? ' on' : ''), pr === 'veloce' ? 'Veloce (3)' : pr === 'completa' ? 'Completa (5)' : 'Libera');
+  (['veloce', 'completa', 'ultimo', 'libera'] as Preset[]).forEach((pr) => {
+    const b = h('button', 'chip wide' + (preset === pr ? ' on' : ''), pr === 'veloce' ? 'Veloce (3)' : pr === 'completa' ? 'Completa (5)' : pr === 'ultimo' ? 'Solo prenotazione' : 'Libera');
     b.dataset.testid = `preset-${pr}`;
     b.onclick = () => { st.preset = pr; showSetupWith(st); };
     presetRow.append(b);
   });
   const roundsRow = h('div', 'row');
+  if (preset === 'ultimo') {
+    const info = h('span', 'preset-info', '3 manche di Ultimo Round, 6 frasi: le lettere si scoprono da sole e ci si prenota per rispondere. Senza gioco finale.');
+    info.dataset.testid = 'preset-info';
+    roundsRow.append(info);
+  }
   if (preset === 'libera') {
     roundsRow.append(h('span', '', 'Manche'));
     for (let n = 1; n <= 5; n++) {
@@ -170,7 +175,7 @@ function showSetup() {
     };
     btns.append(resume);
   }
-  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, kidsRow, bankRow, finRow, btns);
+  box.append(countRow, namesBox, presetRow, roundsRow, srcRow, kidsRow, bankRow, ...(preset === 'ultimo' ? [] : [finRow]), btns);
   stage.append(box);
 }
 
@@ -209,7 +214,9 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
   else {
     const custom = Array.from({ length: st.rounds }, (_, i) => st.custom?.[i] ?? 'classica');
     const { phrases, rounds } = buildGame(presetTypes(st.preset ?? 'completa', custom, Math.random, !!st.config.kids), st.fonte ?? 'banca');
-    state = newGame(st.names, phrases, st.config, rounds, st.config.finale === false ? undefined : buildFinale());
+    // the quick «Solo prenotazione» game has no final game
+    const finale = st.config.finale !== false && st.preset !== 'ultimo';
+    state = newGame(st.names, phrases, st.config, rounds, finale ? buildFinale() : undefined);
     if (host) state = { ...state, players: state.players.map((p, i) => ({ ...p, color: host.seats[i]?.color ?? p.color })) };
   }
   if (host) { host.started = true; keepAwake(); }

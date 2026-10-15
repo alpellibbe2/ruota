@@ -210,6 +210,7 @@ button { font-family: inherit; font-weight: 800; cursor: pointer; }
 .setup .sub { margin: 0; font-size: 26px; }
 .setup .row { font-size: 28px; gap: 12px; }
 .setup .row > span:first-child { min-width: 200px; }
+.setup .row > span.preset-info { min-width: 0; max-width: 1000px; font-size: 24px; opacity: .8; text-align: center; }
 .setup .chip { width: 56px; height: 56px; font-size: 28px; }
 .setup .chip.wide { width: auto; height: auto; padding: 8px 22px; font-size: 26px; }
 .setup .name-row input { font-size: 26px; padding: 4px 14px; width: 300px; }

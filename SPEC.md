@@ -97,6 +97,7 @@ Accede chi ha il totale più alto (spareggio: frase lampo in Ultimo Round).
 Preset a scelta all'avvio:
 - **Completa**: 5 manche (Classica, A tema, Express, Cruciruota o Triplete, Ultimo Round) + finale. Circa 30–40 minuti.
 - **Veloce**: 3 manche + finale. Circa 15–20 minuti.
+- **Solo prenotazione**: 3 manche di Ultimo Round (6 frasi), le lettere si scoprono da sole e ci si prenota per rispondere; senza gioco finale. Circa 10 minuti.
 - **Personalizzata**: numero e tipo di manche, tempi, valori della ruota, costo vocale, Bancarotta totale/solo manche, Jolly on/off, finale on/off.
 
 Le impostazioni dell'ultima partita restano salvate sullo schermo.
