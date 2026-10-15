@@ -2,7 +2,7 @@ import './ui/style.css';
 import { Action, Config, DEFAULT_CONFIG, GameState, PLAYER_COLORS, boardNo, canBuyVowel, currentPhrase, newGame, ranking, reduce, roundType } from './core/game';
 import { finalePhrase } from './core/finale';
 import { addCustom, buildFinale, buildGame, buildRound, presetTypes, Source } from './core/frasi';
-import { BOARD_TITLES, canGo, finaleKind, ENVELOPE_COUNT } from './core/finale';
+import { BOARD_TITLES, callsLive, canGo, finaleKind, ENVELOPE_COUNT } from './core/finale';
 import { PRESETS, ROUND_NAMES, ROUND_RULES, ROUND_TYPES, Preset, RoundType, isBookingRound } from './core/rounds';
 import { checkSolution, checkWords, hiddenLetters } from './core/phrase';
 import { setKidsMode } from './core/frasi';
@@ -318,7 +318,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     if (!f) return;
     // the clock is shown from the first board on; it only runs during 'board'
     const running = f.stage === 'board';
-    const sec = running || f.stage === 'letters' || f.stage === 'pause' ? Math.ceil(f.timeLeft / 1000) : null;
+    const sec = running || f.stage === 'letters' || f.stage === 'answer' || f.stage === 'pause' ? Math.ceil(f.timeLeft / 1000) : null;
     pendingEl.textContent = sec === null ? '' : String(sec);
     pendingEl.classList.toggle('timer', sec !== null);
     pendingEl.classList.toggle('stopped', sec !== null && !running);
@@ -373,6 +373,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
         if (i.k === 'spin') void finaleSpin(Math.min(1, Math.max(0.2, Number(i.power) || 0.5)));
         else if (i.k === 'fstart') dispatch({ type: 'F_START' });
         else if (i.k === 'fgo') dispatch({ type: 'F_GO' });
+        else if (i.k === 'fanswer') dispatch({ type: 'F_ANSWER' });
         else if (i.k === 'fstop') dispatch({ type: 'F_STOP' });
         else if (i.k === 'fchoose') dispatch({ type: 'F_CHOOSE', i: Number(i.i) });
         else if (i.k === 'call' || i.k === 'vowel') dispatch({ type: 'F_CALL', letter: String(i.l) });
@@ -504,7 +505,8 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     const called = new Set(f.called);
     if (host && f.stage !== 'reveal') {
       const t = f.stage === 'wheel' ? `${champ.name}: gira la Ruota delle Meraviglie!` : f.stage === 'spinning' ? 'La ruota gira…' : f.stage === 'choose' ? `${champ.name}: scegli la tua busta!`
-        : f.stage === 'drawn' || f.stage === 'pause' ? `${champ.name}: pronto?` : f.stage === 'letters' ? `${champ.name} sceglie le lettere` : `${champ.name} gioca!`;
+        : f.stage === 'drawn' || f.stage === 'pause' ? `${champ.name}: pronto?` : f.stage === 'letters' ? `${champ.name} sceglie le lettere`
+        : f.stage === 'answer' ? `${champ.name} risponde… tempo fermo` : `${champ.name} gioca!`;
       panel.append(h('div', 'hint big-hint', t), h('div', 'hint sm', 'Usa il telefono del campione'));
       return;
     }
@@ -520,7 +522,9 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       b.onclick = () => dispatch({ type: 'F_START' });
       const next = f.stage === 'drawn' ? 0 : f.boardIdx + 1;
       panel.append(h('div', 'hint', f.stage === 'drawn' ? `Tre buste, tre tabelloni, ${secs} secondi in tutto` : `Prossimo: ${BOARD_TITLES[f.kinds[next]]} · restano ${secs} secondi`),
-        h('div', 'hint sm', f.kinds[next] === 'testacoda' ? 'Niente lettere da scegliere: il tempo parte appena premi PRONTO' : 'Il tempo parte solo dopo la scelta delle lettere, al VIA'), b);
+        h('div', 'hint sm', f.kinds[next] === 'classico' ? 'Il tempo parte solo dopo la scelta delle lettere, al VIA'
+          : f.kinds[next] === 'testacoda' ? 'Niente lettere da scegliere: il tempo parte appena premi PRONTO'
+          : 'Il tempo parte appena premi PRONTO: poi chiami le lettere a tempo che scorre'), b);
     } else if (f.stage === 'letters') {
       const tabs = h('div', 'actions');
       (['cons', 'vowel'] as const).forEach((m) => {
@@ -538,10 +542,30 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
       if (fmode !== 'vowel') panel.append(keyboard(CONSONANTS, new Set([...taken, ...(f.consonantsLeft <= 0 ? CONSONANTS : '')]), (l) => dispatch({ type: 'F_CALL', letter: l })));
       else panel.append(keyboard(VOWELS, new Set([...taken, ...(f.vowelsLeft <= 0 ? VOWELS : '')]), (l) => dispatch({ type: 'F_CALL', letter: l })));
     } else if (f.stage === 'board') {
-      solveForm('Prova la soluzione', (text) => dispatch({ type: 'F_SOLVE', text }));
+      const row = h('div', 'actions');
+      const answer = h('button', 'act spin', 'RISPONDI'); answer.dataset.testid = 'fanswer';
+      answer.onclick = () => dispatch({ type: 'F_ANSWER' });
       const stop = h('button', 'act', 'STOP · VEDI LA SOLUZIONE'); stop.dataset.testid = 'fstop';
       stop.onclick = () => dispatch({ type: 'F_STOP' });
-      panel.append(stop, h('div', 'hint sm', 'Fermarsi non vince il tabellone, ma salva i secondi'));
+      row.append(answer, stop);
+      if (callsLive(f)) {
+        if (f.vowelsLeft <= 0) fmode = 'cons'; // the one vowel is used: back to consonants
+        const tabs = h('div', 'actions');
+        (['cons', 'vowel'] as const).forEach((m) => {
+          const b = h('button', 'act small' + (fmode !== 'vowel' === (m === 'cons') ? ' spin' : ''), m === 'cons' ? 'CONSONANTI (−3 s se non c’è)' : `VOCALE (${f.vowelsLeft})`);
+          b.dataset.testid = `ftab-${m}`;
+          b.onclick = () => { fmode = m; renderPanel(); };
+          tabs.append(b);
+        });
+        panel.append(tabs);
+        if (fmode !== 'vowel') panel.append(keyboard(CONSONANTS, called, (l) => dispatch({ type: 'F_CALL', letter: l })));
+        else panel.append(keyboard(VOWELS, new Set([...called, ...(f.vowelsLeft <= 0 ? VOWELS : '')]), (l) => dispatch({ type: 'F_CALL', letter: l })));
+      } else {
+        panel.append(h('div', 'hint', 'Sai la frase? Premi RISPONDI: il tempo si ferma'));
+      }
+      panel.append(row, h('div', 'hint sm', 'STOP non vince il tabellone, ma salva i secondi'));
+    } else if (f.stage === 'answer') {
+      solveForm('Tempo fermo: scrivi la soluzione (se è sbagliata il tabellone è perso)', (text) => dispatch({ type: 'F_SOLVE', text }));
     } else if (f.stage === 'choose') {
       panel.append(h('div', 'hint', `${champ.name}, scegli una busta conquistata!`));
       const row = h('div', 'actions');
@@ -759,7 +783,7 @@ export function startGame(st: Settings, host?: Host, resume?: GameState) {
     if (!/^[A-Z]$/.test(l)) return;
     if (host) return;
     if (state.phase === 'finale') {
-      if (state.finale?.stage === 'letters') dispatch({ type: 'F_CALL', letter: l });
+      if (state.finale && (state.finale.stage === 'letters' || callsLive(state.finale))) dispatch({ type: 'F_CALL', letter: l });
       return;
     }
     if (state.phase === 'consonant' || mode === 'cons') dispatch({ type: 'CALL', letter: l });

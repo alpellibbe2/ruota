@@ -193,6 +193,13 @@ function finaleEvent(s: GameState, f: FinaleState, a: FinaleAction): GameState['
       return n ? emit(s, 'hit', { count: n, letter: fresh.join('') }) : emit(s, 'miss');
     }
     case 'F_STOP': return emit(s, 'wrong');
+    case 'F_CALL': {
+      // Rubasecondi: the letter shows at once (while choosing on Tabellone 1 nothing is revealed yet)
+      if (f.picked.length) return s.event;
+      const L = baseLetter(a.letter);
+      const n = finalePhrase(f).text.split('').filter((c) => baseLetter(c) === L).length;
+      return n ? emit(s, 'hit', { count: n, letter: L }) : emit(s, 'miss');
+    }
     case 'F_SOLVE': case 'F_FORCE_SOLVE':
       return f.won.filter(Boolean).length > (s.finale?.won.filter(Boolean).length ?? 0) ? emit(s, 'roundEnd') : emit(s, 'wrong');
     case 'F_CHOOSE': return emit(s, 'gameEnd');
@@ -360,7 +367,7 @@ export function reduce(s: GameState, a: Action): GameState {
       if (s.phase !== 'ultimo' || s.excluded.includes(a.player) || !s.players[a.player]) return s;
       return { ...s, phase: 'booked', booked: a.player, current: a.player, message: `${s.players[a.player].name} si prenota!`, event: emit(s, 'book') };
     }
-    case 'F_SPIN': case 'F_SPIN_DONE': case 'F_START': case 'F_GO': case 'F_STOP': case 'F_CALL': case 'F_SOLVE': case 'F_FORCE_SOLVE': case 'F_TICK': case 'F_CHOOSE': {
+    case 'F_SPIN': case 'F_SPIN_DONE': case 'F_START': case 'F_GO': case 'F_ANSWER': case 'F_STOP': case 'F_CALL': case 'F_SOLVE': case 'F_FORCE_SOLVE': case 'F_TICK': case 'F_CHOOSE': {
       if (s.phase !== 'finale' || !s.finale) return s;
       const f = finaleReduce(s.finale, a);
       if (f === s.finale) return s;
@@ -372,7 +379,7 @@ export function reduce(s: GameState, a: Action): GameState {
       return { ...s, players, phase: 'gameEnd', event: emit(s, 'gameEnd') };
     }
     case 'FORCE_SOLVE': {
-      if (s.phase === 'finale' && s.finale) return reduce(s, { type: 'F_SOLVE', text: finalePhrase(s.finale).text });
+      if (s.phase === 'finale' && s.finale) return reduce(s, { type: 'F_FORCE_SOLVE' });
       if (s.phase === 'booked' && s.booked !== null) return reduce(s, { type: 'SOLVE', text: phrase.words ? phrase.words.join(' ') : phrase.text });
       if (s.phase !== 'turn' && s.phase !== 'consonant') return s;
       return winBoard({ ...s, called: allLetters(phrase.text) }, `${me.name} risolve!`);

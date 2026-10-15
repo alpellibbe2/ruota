@@ -43,14 +43,12 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
   await page.locator('.kb .key:not([disabled])').first().click();
   expect((await st(page)).finale.consonantsLeft).toBe(2);
   await expect(page.getByTestId('fgo')).toBeDisabled();
-  /** Pick the remaining letters (Rubasecondi: just the vowel), check the clock is still, then VIA. */
+  /** Pick the remaining letters, check the clock is still, then VIA. */
   const pickAndGo = async () => {
     let f = (await st(page)).finale;
     const t0 = f.timeLeft;
-    if (f.kinds[f.boardIdx] !== 'rubasecondi') {
-      await page.getByTestId('ftab-cons').click();
-      while ((await st(page)).finale.consonantsLeft > 0) await page.locator('.kb .key:not([disabled])').first().click();
-    }
+    await page.getByTestId('ftab-cons').click();
+    while ((await st(page)).finale.consonantsLeft > 0) await page.locator('.kb .key:not([disabled])').first().click();
     await page.getByTestId('ftab-vowel').click();
     while ((await st(page)).finale.vowelsLeft > 0) await page.locator('.kb .key:not([disabled])').first().click();
     await page.waitForTimeout(400);
@@ -59,15 +57,19 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
     await page.getByTestId('fgo').click();
     expect((await st(page)).finale.stage).toBe('board');
   };
+  /** «RISPONDI» stops the clock, then the answer. */
   const solve = async (txt?: string) => {
     const f = (await st(page)).finale;
+    await page.getByTestId('fanswer').click();
+    expect((await st(page)).finale.stage).toBe('answer');
+    const t = (await st(page)).finale.timeLeft;
+    await page.waitForTimeout(400);
+    expect((await st(page)).finale.timeLeft).toBe(t);
     await page.getByTestId('solve-input').fill(txt ?? f.phrases[f.boardIdx].text);
     await page.getByTestId('solve-ok').click();
   };
   await pickAndGo();
   await page.screenshot({ path: `${SHOTS}/finale-tabellone1.png` });
-  await solve('sbagliato');
-  expect((await st(page)).finale.won[0]).toBe(false);
   await solve();
   s = await st(page);
   expect(s.finale.stage).toBe('pause');
@@ -96,9 +98,10 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
   await page.screenshot({ path: `${SHOTS}/finale-stop.png` });
   await page.getByTestId('fstart').click();
 
-  // Board 3: Rubasecondi, an absent consonant costs 3 seconds at VIA
+  // Board 3: Rubasecondi: the clock runs from «PRONTO», letters show at once, an absent consonant costs 3 seconds
   s = await st(page);
   expect(s.finale.boardIdx).toBe(2);
+  expect(s.finale.stage).toBe('board');
   const before = s.finale.timeLeft;
   const absent = await page.evaluate(() => {
     const r = (window as any).__ruota.state().finale;
@@ -107,19 +110,25 @@ test('finale su un dispositivo: ruota delle buste, tre tabelloni, scelta della b
   });
   await page.getByTestId('ftab-cons').click();
   await page.getByTestId(`key-${absent}`).click();
-  await pickAndGo();
   const after = (await st(page)).finale.timeLeft;
   expect(before - after).toBeGreaterThanOrEqual(3000);
+  await page.getByTestId('ftab-vowel').click();
+  await page.locator('.kb .key:not([disabled])').first().click();
+  expect((await st(page)).finale.vowelsLeft).toBe(0);
+  await expect(page.getByTestId('key-A')).toHaveCount(0); // one vowel only: back to the consonants
   await page.screenshot({ path: `${SHOTS}/finale-rubasecondi.png` });
-  await solve();
+  // a wrong answer loses the board
+  await solve('risposta sbagliata');
+  expect((await st(page)).finale.won).toEqual([true, false, false]);
 
   // Choose an envelope
   await expect(page.getByTestId('choose-1')).toBeDisabled(); // stopped: not won
+  await expect(page.getByTestId('choose-2')).toBeDisabled(); // wrong answer: not won
   await page.screenshot({ path: `${SHOTS}/finale-scelta.png` });
-  await page.getByTestId('choose-2').click();
+  await page.getByTestId('choose-0').click();
   await expect(page.getByTestId('fend')).toBeVisible();
   s = await st(page);
-  expect(s.finale.prize).toBe(s.finale.values[s.finale.envelopes[2]]);
+  expect(s.finale.prize).toBe(s.finale.values[s.finale.envelopes[0]]);
   await page.screenshot({ path: `${SHOTS}/finale-rivelazione.png` });
   const champ = s.finale.champion;
   const total = s.players[champ].total;
@@ -219,11 +228,9 @@ test('finale con i telefoni: solo il campione comanda', async ({ browser }) => {
   for (let i = 0; i < 3; i++) {
     if (i > 0) await p0.getByTestId('pfstart').click();
     let f = (await st(host)).finale;
-    await expect.poll(async () => (await st(host)).finale.stage).toBe(f.kinds[i] === 'testacoda' ? 'board' : 'letters');
+    await expect.poll(async () => (await st(host)).finale.stage).toBe(f.kinds[i] === 'classico' ? 'letters' : 'board');
     f = (await st(host)).finale;
-    if (f.kinds[i] === 'testacoda') {
-      // nothing to choose: straight to the solution
-    } else if (f.kinds[i] !== 'rubasecondi') {
+    if (f.kinds[i] === 'classico') {
       await p0.getByTestId('pftab-cons').click();
       while ((await st(host)).finale.consonantsLeft > 0) {
         const left = (await st(host)).finale.consonantsLeft;
@@ -231,7 +238,7 @@ test('finale con i telefoni: solo il campione comanda', async ({ browser }) => {
         await expect.poll(async () => (await st(host)).finale.consonantsLeft).toBe(left - 1);
       }
     }
-    if (f.kinds[i] !== 'testacoda') {
+    if (f.kinds[i] === 'classico') {
       await p0.getByTestId('pftab-vowel').click();
       while ((await st(host)).finale.vowelsLeft > 0) {
         const left = (await st(host)).finale.vowelsLeft;
@@ -246,7 +253,15 @@ test('finale con i telefoni: solo il campione comanda', async ({ browser }) => {
       await expect(p0.getByTestId('ptimer')).toContainText('⏱');
       await p0.screenshot({ path: `${SHOTS}/telefono-campione-tabellone.png` });
     }
+    if (f.kinds[i] === 'rubasecondi') {
+      // letters are called while the clock runs and show at once
+      await p0.getByTestId('pftab-vowel').click();
+      await p0.locator('.pkb .pkey:not([disabled])').first().click();
+      await expect.poll(async () => (await st(host)).finale.vowelsLeft).toBe(0);
+    }
     f = (await st(host)).finale;
+    await p0.getByTestId('pfanswer').click();
+    await expect.poll(async () => (await st(host)).finale.stage).toBe('answer');
     await p0.getByTestId('psolve-input').fill(f.phrases[f.boardIdx].text);
     await p0.getByTestId('psolve-ok').click();
     await expect.poll(async () => (await st(host)).finale.won.filter(Boolean).length).toBe(i + 1);

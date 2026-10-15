@@ -68,6 +68,7 @@ test('modalità bambini: la finale ha un solo tabellone e più tempo', async ({ 
   await page.getByTestId('fgo').click();
   await page.screenshot({ path: `${SHOTS}/bambini-finale.png` });
   const ph = (await st(page)).finale.phrases[0].text;
+  await page.getByTestId('fanswer').click();
   await page.getByTestId('solve-input').fill(ph);
   await page.getByTestId('solve-ok').click();
   await expect(page.getByTestId('choose-0')).toBeVisible();

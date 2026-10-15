@@ -16,6 +16,7 @@ export type Intent =
   | { k: 'book' }
   | { k: 'fstart' }
   | { k: 'fgo' }
+  | { k: 'fanswer' }
   | { k: 'fstop' }
   | { k: 'fchoose'; i: number };
 

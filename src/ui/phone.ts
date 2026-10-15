@@ -270,7 +270,8 @@ export function startPhone(body: HTMLElement, code: string) {
         const go = h('button', 'pbook', 'PRONTO'); go.dataset.testid = 'pfstart';
         go.onclick = () => client?.send({ k: 'fstart' });
         ctrl.append(h('div', 'phint', f.stage === 'drawn' ? `Buste ${f.envelopes.join(', ')} · ${secs} secondi in tutto` : `Restano ${secs} secondi per il prossimo tabellone`),
-          h('div', 'phint', f.kinds[f.boardIdx + (f.stage === 'pause' ? 1 : 0)] === 'testacoda' ? 'Testacoda: niente lettere, il tempo parte appena premi PRONTO' : 'Il tempo parte solo al VIA, dopo la scelta delle lettere'), go);
+          h('div', 'phint', ({ classico: 'Il tempo parte solo al VIA, dopo la scelta delle lettere', testacoda: 'Testacoda: niente lettere, il tempo parte appena premi PRONTO',
+            rubasecondi: 'Rubasecondi: il tempo parte appena premi PRONTO, poi chiami le lettere' })[f.kinds[f.boardIdx + (f.stage === 'pause' ? 1 : 0)]]), go);
       } else if (f.stage === 'letters') {
         ctrl.append(h('div', 'phint', `Tempo fermo: ${Math.ceil(f.timeLeft / 1000)} secondi`));
         const tabs = h('div', 'prowbtn');
@@ -289,10 +290,27 @@ export function startPhone(body: HTMLElement, code: string) {
         go.onclick = () => client?.send({ k: 'fgo' });
         ctrl.append(go);
       } else if (f.stage === 'board') {
-        solveForm();
+        if (f.kind === 'rubasecondi') {
+          if (f.vowelsLeft <= 0) fmode = 'cons'; // the one vowel is used: back to consonants
+          const tabs = h('div', 'prowbtn');
+          (['cons', 'vowel'] as const).forEach((m) => {
+            const b = h('button', 'pbtn small' + ((fmode !== 'vowel') === (m === 'cons') ? ' on' : ''), m === 'cons' ? 'Consonanti (−3 s se non c’è)' : `Vocale ${f.vowelsLeft}`);
+            b.dataset.testid = `pftab-${m}`;
+            b.onclick = () => { fmode = m; render(); };
+            tabs.append(b);
+          });
+          ctrl.append(tabs);
+          if (fmode !== 'vowel') ctrl.append(kb(CONSONANTS, (l) => client?.send({ k: 'call', l }), new Set(v.called)));
+          else ctrl.append(kb(VOWELS, (l) => client?.send({ k: 'vowel', l }), new Set([...v.called, ...(f.vowelsLeft <= 0 ? VOWELS : '')])));
+        }
+        const answer = h('button', 'pbook go', 'RISPONDI'); answer.dataset.testid = 'pfanswer';
+        answer.onclick = () => client?.send({ k: 'fanswer' });
         const stop = h('button', 'pbtn', 'STOP · vedi la soluzione'); stop.dataset.testid = 'pfstop';
         stop.onclick = () => client?.send({ k: 'fstop' });
-        ctrl.append(stop, h('div', 'phint', 'Fermarti non vince il tabellone, ma salvi i secondi per i prossimi'));
+        ctrl.append(answer, stop, h('div', 'phint', 'RISPONDI ferma il tempo. STOP non vince il tabellone, ma salva i secondi'));
+      } else if (f.stage === 'answer') {
+        ctrl.append(h('div', 'phint', 'Tempo fermo: scrivi la soluzione. Se è sbagliata il tabellone è perso'));
+        solveForm();
       } else if (f.stage === 'choose') {
         ctrl.append(h('div', 'phint', 'Scegli la tua busta!'));
         f.won.forEach((w, i) => {

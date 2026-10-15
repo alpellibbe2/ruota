@@ -86,8 +86,9 @@ Accede chi ha il totale più alto (spareggio: frase lampo in Ultimo Round).
 2. Ha **60 secondi in totale** per risolvere tre tabelloni in sequenza:
    - **Tabellone 1**: classico, con alcune lettere già scoperte.
    - **Tabellone 2 – Testacoda**: sono visibili solo la prima e l'ultima lettera di ogni parola; non si scelgono lettere: appena il campione preme PRONTO compaiono e il tempo riparte.
-   - **Tabellone 3 – Rubasecondi**: il campione chiama liberamente consonanti e **una sola vocale**; ogni lettera assente toglie 3 secondi.
-   - **Il cronometro scorre solo mentre il campione gioca.** Sul Tabellone 1 e sul Rubasecondi sceglie prima le lettere a tempo fermo (restano coperte); quando è pronto preme **VIA**: le lettere si scoprono e il tempo riparte. Nel Rubasecondi i 3 secondi per ogni lettera assente si tolgono al VIA.
+   - **Tabellone 3 – Rubasecondi**: il tempo parte appena il campione preme PRONTO; chiama liberamente consonanti, che compaiono subito se ci sono, altrimenti tolgono 3 secondi; **una sola vocale**.
+   - **Il cronometro scorre solo mentre il campione gioca.** Sul Tabellone 1 sceglie prima le lettere a tempo fermo (restano coperte); quando è pronto preme **VIA**: le lettere si scoprono e il tempo riparte.
+   - Su tutti i tabelloni, per rispondere preme **RISPONDI**: il tempo si ferma e scrive la soluzione. Una risposta sbagliata fa perdere il tabellone (si vede la soluzione, i secondi rimasti restano per i successivi).
    - Può premere **STOP** quando vuole: il tabellone non è vinto, si vede la soluzione e i secondi rimasti restano per i tabelloni successivi.
    - Tra un tabellone e l'altro (dopo una vittoria o uno stop) il tempo è fermo finché il campione non preme **PRONTO**.
 3. Ogni tabellone risolto conquista la busta corrispondente. Alla fine il campione **ne sceglie una** fra quelle conquistate e la apre; poi vengono rivelate anche le altre.
