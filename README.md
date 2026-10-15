@@ -2,7 +2,7 @@
 
 Gioco da salotto ispirato a "La Ruota della Fortuna", per 2–6 giocatori. Web app statica: si apre da un link, lo schermo principale si proietta sulla TV e i giocatori partecipano con il telefono (o si gioca tutti su un solo dispositivo).
 
-**Gioca:** sul server di casa (mini PC), vedi [Installazione sul mini PC](#installazione-sul-mini-pc).
+**Gioca:** https://alpellibbe2.github.io/ruota/
 
 > Uso privato tra amici. Stile ispirato al programma, ma tutti gli asset (grafica, suoni, frasi) sono originali. Niente logo, sigla, musiche o voci del programma.
 
@@ -18,9 +18,9 @@ Gioco da salotto ispirato a "La Ruota della Fortuna", per 2–6 giocatori. Web a
 
 Dopo il primo caricamento la modalità «un dispositivo» funziona anche senza rete (PWA, solo su HTTPS o `localhost`).
 
-## Installazione sul mini PC
+## Installazione sul mini PC (alternativa)
 
-Tutto gira in un container Debian 13 della rete di casa: nginx (sito, porta 80), server PeerJS per il collegamento schermo↔telefoni e coturn (TURN, porta 3478) che fa da ponte quando i telefoni non riescono a raggiungere lo schermo direttamente (per esempio Wi-Fi con i client isolati tra loro). Nessun servizio esterno, nessuna porta aperta verso internet: i telefoni devono essere sul Wi-Fi di casa.
+In alternativa a GitHub Pages, tutto può girare in un container Debian 13 della rete di casa: nginx (sito, porta 80), server PeerJS per il collegamento schermo↔telefoni e coturn (TURN, porta 3478) che fa da ponte quando i telefoni non riescono a raggiungere lo schermo direttamente (per esempio Wi-Fi con i client isolati tra loro). Nessun servizio esterno, nessuna porta aperta verso internet: i telefoni devono essere sul Wi-Fi di casa.
 
 ```
 deploy/crea-pacchetto.sh /root/ruota-server.tar.gz   # build + server PeerJS con dipendenze
@@ -47,4 +47,5 @@ npm run e2e        # test end-to-end (partite complete, telefoni simulati via Pe
 - Le frasi nel repository sono offuscate (rot13 + base64).
 - Gli screenshot dei momenti chiave sono in `docs/screenshot/<fase>/`.
 - Decisioni di progetto: `DECISIONI.md`. Problemi noti: `PROBLEMI.md`.
-- Senza `rete.json` (sviluppo) il gioco usa il server PeerJS pubblico; `?peer=host:porta` sceglie un server PeerJS a mano (test).
+- Deploy automatico su GitHub Pages a ogni push su `main`.
+- Senza `rete.json` (GitHub Pages, sviluppo) il gioco usa il server PeerJS pubblico; `?peer=host:porta` sceglie un server PeerJS a mano (test).

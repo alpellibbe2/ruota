@@ -35,3 +35,6 @@
 - Configurazione di rete a runtime in `rete.json` (scritto da `deploy/installa.sh`, non nel repo): PeerJS sulla stessa origine (`/peerjs` via nginx), TURN su `<host della pagina>:3478` con utente fisso `ruota` e password generata. Password in chiaro nella pagina: accettabile perché il server non è esposto su internet. Se un giorno lo si espone: passare a credenziali temporanee (`use-auth-secret` di coturn).
 - Sito in HTTP sulla LAN: il service worker non si registra (serve HTTPS), quindi niente modalità offline da quel server; il resto funziona.
 - Jolly: salva anche dal tempo scaduto (confermato dall'utente il 2026-10-15; il codice lo faceva già, corregge la nota della Fase 4).
+
+## 2026-10-15
+- **Si resta su GitHub Pages** (repo pubblico, PeerJS cloud): ripristinato il deploy automatico. Il server di casa in `deploy/` resta come alternativa non in uso; senza `rete.json` il sito si comporta come prima. Scartato il nome `ruota.fritz.box`.

@@ -2,7 +2,7 @@
 
 ## Stato
 - **Fasi 1–5 COMPLETATE**. **Fase 6** (bambini, banca frasi 355+120, PWA offline, rifiniture): codice e test verdi (vitest 48 + e2e 17). Deploy ok, smoke test pubblico ok. **Tutte le fasi completate.**
-- Sito: server di casa (CT Debian sul mini PC), installato con `deploy/installa.sh`. GitHub Pages disattivato, repo privato.
+- Sito: https://alpellibbe2.github.io/ruota/ (GitHub Pages, deploy a ogni push). Server di casa (`deploy/`) disponibile come alternativa, non in uso.
 
 ## Struttura
 - `src/core/` logica pura (phrase, wheel, game reducer, frasi). Test in `tests/`.
